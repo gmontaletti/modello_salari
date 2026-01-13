@@ -794,49 +794,84 @@ plot_forecast_fan <- function(var_model, data, n_ahead = 12) {
 # ------------------------------------------------------------------------------
 
 plot_irf_fan <- function(irf_obj, title = "Risposta Impulsiva") {
-  # Extract data
+  # Extract the impulse variable name (first element of named list)
+  impulse_name <- names(irf_obj$irf)[1]
+
+  # Get the response vector and CI bounds
+  response_vec <- irf_obj$irf[[impulse_name]]
+  lower_vec <- irf_obj$Lower[[impulse_name]]
+  upper_vec <- irf_obj$Upper[[impulse_name]]
+
+  # Handle case where response is a matrix (multiple response variables)
+  if (is.matrix(response_vec)) {
+    response_vec <- response_vec[, 1]
+    lower_vec <- lower_vec[, 1]
+    upper_vec <- upper_vec[, 1]
+  }
+
+  # Check if CI bounds are available
+  has_ci <- length(lower_vec) > 0 && length(upper_vec) > 0
+
+  # Build data frame
   irf_data <- data.frame(
-    horizon = 0:(length(irf_obj$irf[[1]]) - 1),
-    response = irf_obj$irf[[1]],
-    lower95 = irf_obj$Lower[[1]],
-    upper95 = irf_obj$Upper[[1]]
+    horizon = 0:(length(response_vec) - 1),
+    response = as.numeric(response_vec)
   )
 
-  # Approximate intermediate bands
-  irf_data$lower80 <- irf_data$response -
-    1.28 * (irf_data$response - irf_data$lower95) / 1.96
-  irf_data$upper80 <- irf_data$response +
-    1.28 * (irf_data$upper95 - irf_data$response) / 1.96
-  irf_data$lower50 <- irf_data$response -
-    0.67 * (irf_data$response - irf_data$lower95) / 1.96
-  irf_data$upper50 <- irf_data$response +
-    0.67 * (irf_data$upper95 - irf_data$response) / 1.96
+  if (has_ci) {
+    irf_data$lower95 <- as.numeric(lower_vec)
+    irf_data$upper95 <- as.numeric(upper_vec)
 
-  ggplot(irf_data, aes(x = horizon)) +
-    geom_ribbon(
-      aes(ymin = lower95, ymax = upper95),
-      fill = "#457B9D",
-      alpha = 0.2
-    ) +
-    geom_ribbon(
-      aes(ymin = lower80, ymax = upper80),
-      fill = "#457B9D",
-      alpha = 0.3
-    ) +
-    geom_ribbon(
-      aes(ymin = lower50, ymax = upper50),
-      fill = "#457B9D",
-      alpha = 0.4
-    ) +
-    geom_line(aes(y = response), color = "#E63946", linewidth = 1.2) +
-    geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
-    labs(
-      title = title,
-      subtitle = "Intervalli di confidenza bootstrap al 50%, 80% e 95%",
-      x = "Trimestri",
-      y = "Risposta"
-    ) +
-    theme_salari()
+    # Approximate intermediate bands
+    irf_data$lower80 <- irf_data$response -
+      1.28 * (irf_data$response - irf_data$lower95) / 1.96
+    irf_data$upper80 <- irf_data$response +
+      1.28 * (irf_data$upper95 - irf_data$response) / 1.96
+    irf_data$lower50 <- irf_data$response -
+      0.67 * (irf_data$response - irf_data$lower95) / 1.96
+    irf_data$upper50 <- irf_data$response +
+      0.67 * (irf_data$upper95 - irf_data$response) / 1.96
+
+    p <- ggplot(irf_data, aes(x = horizon)) +
+      geom_ribbon(
+        aes(ymin = lower95, ymax = upper95),
+        fill = "#457B9D",
+        alpha = 0.2
+      ) +
+      geom_ribbon(
+        aes(ymin = lower80, ymax = upper80),
+        fill = "#457B9D",
+        alpha = 0.3
+      ) +
+      geom_ribbon(
+        aes(ymin = lower50, ymax = upper50),
+        fill = "#457B9D",
+        alpha = 0.4
+      ) +
+      geom_line(aes(y = response), color = "#E63946", linewidth = 1.2) +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+      labs(
+        title = title,
+        subtitle = "Intervalli di confidenza bootstrap al 50%, 80% e 95%",
+        x = "Trimestri",
+        y = "Risposta"
+      ) +
+      theme_salari()
+  } else {
+    # No CI available - plot response only
+    p <- ggplot(irf_data, aes(x = horizon, y = response)) +
+      geom_line(color = "#E63946", linewidth = 1.2) +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+      labs(
+        title = title,
+        subtitle = "Risposta impulsiva (senza intervalli di confidenza)",
+        x = "Trimestri",
+        y = "Risposta"
+      ) +
+      theme_salari()
+  }
+
+  return(p)
 }
 
 # ------------------------------------------------------------------------------
