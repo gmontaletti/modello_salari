@@ -232,30 +232,34 @@ I settori analizzati presentano una significativa variabilità nei livelli retri
 
 ```{r tab-top-settori}
 ranking_settori_nace %>%
+  mutate(settore = ifelse(nchar(settore) > 45, paste0(substr(settore, 1, 42), "..."), settore)) %>%
   select(settore, salario_mediano, salario_medio, D9_D1) %>%
   head(10) %>%
   kable(
-    col.names = c("Settore", "Salario Mediano (€/h)", "Salario Medio (€/h)", "D9/D1"),
+    col.names = c("Settore", "Sal. Med.", "Sal. Medio", "D9/D1"),
     digits = 2,
-    caption = "Top 10 settori per salario mediano (2022)",
+    caption = "Top 10 settori per salario mediano (2022, €/h)",
     booktabs = TRUE
   ) %>%
-  kable_styling(latex_options = c("hold_position", "scale_down"))
+  kable_styling(latex_options = c("hold_position"), font_size = 9) %>%
+  column_spec(1, width = "6cm")
 ```
 
 ### Settori a bassa retribuzione
 
 ```{r tab-bottom-settori}
 ranking_settori_nace %>%
+  mutate(settore = ifelse(nchar(settore) > 45, paste0(substr(settore, 1, 42), "..."), settore)) %>%
   select(settore, salario_mediano, salario_medio, D9_D1) %>%
   tail(10) %>%
   kable(
-    col.names = c("Settore", "Salario Mediano (€/h)", "Salario Medio (€/h)", "D9/D1"),
+    col.names = c("Settore", "Sal. Med.", "Sal. Medio", "D9/D1"),
     digits = 2,
-    caption = "Bottom 10 settori per salario mediano (2022)",
+    caption = "Bottom 10 settori per salario mediano (2022, €/h)",
     booktabs = TRUE
   ) %>%
-  kable_styling(latex_options = c("hold_position", "scale_down"))
+  kable_styling(latex_options = c("hold_position"), font_size = 9) %>%
+  column_spec(1, width = "6cm")
 ```
 
 ```{r fig-ranking-settori, fig.cap="Ranking settori NACE per salario mediano (2022)", out.width="90%"}
@@ -268,16 +272,18 @@ La dispersione salariale interna ai settori, misurata dal rapporto interdecile D
 
 ```{r tab-dispersione-settori}
 dispersione_settori %>%
+  mutate(settore = ifelse(nchar(settore) > 45, paste0(substr(settore, 1, 42), "..."), settore)) %>%
   select(settore, salario_mediano, D9_D1, D9_D5, D5_D1) %>%
   arrange(desc(D9_D1)) %>%
   head(10) %>%
   kable(
-    col.names = c("Settore", "Sal. Med. (€/h)", "D9/D1", "D9/D5", "D5/D1"),
+    col.names = c("Settore", "Sal. Med.", "D9/D1", "D9/D5", "D5/D1"),
     digits = 2,
-    caption = "Settori con maggiore dispersione salariale (D9/D1, 2022)",
+    caption = "Settori con maggiore dispersione salariale (D9/D1, 2022, €/h)",
     booktabs = TRUE
   ) %>%
-  kable_styling(latex_options = c("hold_position", "scale_down"))
+  kable_styling(latex_options = c("hold_position"), font_size = 9) %>%
+  column_spec(1, width = "6cm")
 ```
 
 ```{r fig-scatter-settori, fig.cap="Relazione tra livello salariale e dispersione per settore (2022)", out.width="90%"}
@@ -290,15 +296,17 @@ Il differenziale salariale di genere presenta notevole eterogeneità settoriale:
 
 ```{r tab-gap-settori}
 gap_gender_settori %>%
+  mutate(settore = ifelse(nchar(settore) > 45, paste0(substr(settore, 1, 42), "..."), settore)) %>%
   select(settore, salario_femmine, salario_maschi, gap_percentuale) %>%
   head(10) %>%
   kable(
-    col.names = c("Settore", "Salario F (€/h)", "Salario M (€/h)", "Gap (%)"),
+    col.names = c("Settore", "Sal. F", "Sal. M", "Gap (%)"),
     digits = c(0, 2, 2, 1),
-    caption = "Settori con maggior gap di genere (2022)",
+    caption = "Settori con maggior gap di genere (2022, €/h)",
     booktabs = TRUE
   ) %>%
-  kable_styling(latex_options = c("hold_position", "scale_down"))
+  kable_styling(latex_options = c("hold_position"), font_size = 9) %>%
+  column_spec(1, width = "6cm")
 ```
 
 ```{r fig-gap-settori, fig.cap="Gap salariale di genere per settore NACE (2022)", out.width="90%"}
