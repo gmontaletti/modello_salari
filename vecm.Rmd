@@ -28,6 +28,7 @@ header-includes:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
+
   echo = FALSE,
   message = FALSE,
   warning = FALSE,
@@ -37,10 +38,34 @@ knitr::opts_chunk$set(
   out.width = "90%"
 )
 
-# Carica i dati e le funzioni
-source("modello_dati_istat.R", local = TRUE)
-source("visualizzazioni_salari.R", local = TRUE)
-source("modello_tvpvar.R", local = TRUE)
+# Carica i dati dai risultati della pipeline
+data_istat <- readRDS("output/vecm/dati_istat.rds")
+results <- readRDS("output/vecm/modello_salari_results.rds")
+
+# Estrai i risultati dal file consolidato
+eda_results <- results$eda_results
+stationarity_results <- results$stationarity_results
+coint_results <- results$coint_results
+vecm_results <- results$vecm_results
+diagnostics <- results$diagnostics
+irf_results <- results$irf_results
+fevd_results <- results$fevd_results
+scenarios <- results$scenarios
+extended_model <- results$extended_model
+stability_results <- results$stability_results
+break_results <- results$break_results
+rolling_results <- results$rolling_results
+causality_results <- results$causality_results
+sensitivity_results <- results$sensitivity_results
+tvpvar_results <- results$tvpvar_results
+
+# Risolvi conflitto namespace (MASS::select vs dplyr::select)
+if ("package:MASS" %in% search()) {
+  select <- dplyr::select
+}
+
+# Carica le funzioni di visualizzazione
+source("backup/visualizzazioni_salari.R", local = TRUE)
 ```
 
 \newpage
