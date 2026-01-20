@@ -19,3 +19,9 @@ Thumbs.db
 *.html
 modello_salari_results.rds
 dati_salari_italia.csv
+
+# Backup directory (non committare)
+backup/
+
+# Log files
+*.log

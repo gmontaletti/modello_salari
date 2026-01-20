@@ -6,65 +6,109 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Econometric model analyzing wage determinants in Italy (1995-2024) using Vector Error Correction Model (VECM) methodology. Based on Giampaolo Montaletti's research framework published on Il Sussidiario (2009-2025).
 
+## Project Structure
+
+```
+modello_salari/
+├── 00_download_data.R           # Consolidated data download (ISTAT, RACLI, shapefile, mapping)
+│
+├── racli_prep.R                 # RACLI analysis pipeline
+├── racli.Rmd                    # RACLI report
+├── output/racli/                # RACLI outputs (RDS + grafici/)
+│
+├── vecm_prep.R                  # VECM analysis pipeline
+├── vecm.Rmd                     # VECM report
+├── output/vecm/                 # VECM outputs (RDS + grafici/)
+│
+├── imprese_prep.R               # Enterprise analysis pipeline
+├── imprese.Rmd                  # Enterprise report
+├── output/imprese/              # Enterprise outputs (RDS + grafici/)
+│
+├── preliminare_prep.R           # Preliminary analysis prep
+├── preliminare.Rmd              # Preliminary data report
+├── output/preliminare/          # Preliminary outputs
+│
+├── backup/                      # [NOT COMMITTED] Original scripts
+│   ├── 00_*.R, 01_*.R, ...      # Numbered original scripts
+│   ├── modello_*.R              # Legacy VECM scripts
+│   └── exploratory/             # Exploratory analyses
+│
+├── data/                        # Input data (ISTAT, shapefiles)
+├── meta/                        # Metadata and codelists
+├── racli/                       # Raw RACLI dataflows
+├── R/                           # Shared utility functions
+│
+├── CLAUDE.md, *.md              # Documentation
+├── references.bib               # Bibliography
+└── renv.lock, modello_salari.Rproj
+```
+
 ## Running the Analysis
 
 ```bash
-# Run the main econometric model
-Rscript modello_salari_montaletti.R
+# 1. Download all data (run once)
+Rscript 00_download_data.R
 
-# Generate causal DAG visualizations
-Rscript dag_salari_montaletti.R
+# 2. Run specific analysis pipelines
+Rscript racli_prep.R           # RACLI analysis → output/racli/
+Rscript vecm_prep.R            # VECM analysis → output/vecm/
+Rscript imprese_prep.R         # Enterprise analysis → output/imprese/
+Rscript preliminare_prep.R     # Preliminary analysis → output/preliminare/
 
-# Generate all plots (requires data from main model)
-Rscript visualizzazioni_salari.R
+# 3. Generate reports
+Rscript -e "rmarkdown::render('racli.Rmd')"
+Rscript -e "rmarkdown::render('vecm.Rmd')"
+Rscript -e "rmarkdown::render('imprese.Rmd')"
+Rscript -e "rmarkdown::render('preliminare.Rmd')"
 ```
 
-In R console, typical workflow:
-```r
-source("modello_salari_montaletti.R")
-# Functions are executed sequentially from data generation through policy scenarios
-```
+## Main Scripts
 
-## Architecture
+| Script | Purpose |
+|--------|---------|
+| `00_download_data.R` | Downloads ISTAT, OECD, RACLI data, shapefiles, creates geographic mapping |
+| `racli_prep.R` | Full RACLI pipeline: data prep, descriptives, inequality, clustering, regressions, visualizations, cartography |
+| `vecm_prep.R` | Full VECM pipeline: data generation, stationarity, cointegration, estimation, diagnostics, IRF/FEVD, policy scenarios |
+| `imprese_prep.R` | Enterprise analysis: data cleaning, statistics, visualizations |
+| `preliminare_prep.R` | Preliminary data preparation |
 
-**Main Scripts:**
+## Key Functions
 
-- `modello_salari_montaletti.R` - Core econometric pipeline: data generation, stationarity tests, cointegration (Johansen), VECM estimation, diagnostics, IRF/FEVD, policy scenarios
-- `dag_salari_montaletti.R` - Causal DAG visualization (16 variables, 30+ edges) using dagitty/ggdag
-- `visualizzazioni_salari.R` - Plotting functions: time series, Phillips curve, IRF, FEVD, correlation heatmaps
+### VECM Pipeline (vecm_prep.R)
 
-**Documentation:**
+| Function | Purpose |
+|----------|---------|
+| `generate_istat_data()` | Creates calibrated quarterly data (120 obs, 1995-2024) |
+| `run_stationarity_tests()` | ADF, Phillips-Perron, KPSS unit root tests |
+| `run_cointegration_tests()` | Johansen trace and max eigenvalue tests |
+| `estimate_vecm_model()` | VECM via `cajorls()`, extracts β and α |
+| `run_model_diagnostics()` | Portmanteau, ARCH-LM, Jarque-Bera tests |
+| `compute_impulse_responses()` | Bootstrap IRF (500 reps, 95% CI) |
+| `compute_variance_decomposition()` | FEVD at 4, 8, 24 quarters |
+| `simulate_scenarios()` | Baseline + policy shock simulations |
 
-- `documentazione_modello_salari.md` - Technical model specification
-- `determinanti_salari_economie_occidentali.md` - Theoretical framework and literature review
+### RACLI Pipeline (racli_prep.R)
 
-## Key Functions in Main Model
-
-| Section | Function | Purpose |
-|---------|----------|---------|
-| 1 | `generate_istat_data()` | Creates calibrated quarterly data (120 obs, 1995-2024) |
-| 2 | `exploratory_analysis()` | Descriptive stats, period comparisons, correlations |
-| 3 | `run_stationarity_tests()` | ADF, Phillips-Perron, KPSS unit root tests |
-| 4 | `select_lag_order()` | Information criteria (AIC, BIC, HQ) |
-| 5 | `run_cointegration_test()` | Johansen trace and max eigenvalue tests |
-| 6 | `estimate_vecm()` | VECM via `cajorls()`, extracts β (cointegration) and α (adjustment) |
-| 7 | `run_diagnostics()` | Portmanteau, ARCH-LM, Jarque-Bera tests |
-| 8-9 | `compute_irf()`, `compute_fevd()` | Bootstrap IRF/FEVD (500 reps, 95% CI) |
-| 11 | Policy scenarios | Baseline + alternative shock simulations |
+| Function | Purpose |
+|----------|---------|
+| `clean_racli_data()` | Data cleaning and ISTAT code matching |
+| `calc_gini_from_deciles()` | Gini approximation from D1, D5, D9 |
+| `validate_dataset()` | Data quality checks |
+| `theme_salari()` | Custom ggplot2 theme |
 
 ## Data Variables
 
-Core endogenous variables for VECM:
+**VECM endogenous variables:**
 - `log_w` - Log nominal wages (index, 2015=100)
 - `log_p` - Log price index (IPCA)
 - `log_prod` - Log labor productivity (€/hour)
 - `u` - Unemployment rate (%)
 
-Extended model variables: `cuneo` (tax wedge), `prec` (precarious contracts), `inv` (investments), `pil` (real GDP)
+**Extended model:** `cuneo` (tax wedge), `prec` (precarious contracts), `inv` (investments), `pil` (real GDP)
 
 ## Dependencies
 
-Core packages: `vars`, `urca`, `tsDyn`, `lmtest`, `sandwich`, `dplyr`, `tidyr`, `zoo`, `ggplot2`, `dagitty`, `ggdag`, `corrplot`, `stargazer`
+Core packages: `vars`, `urca`, `tsDyn`, `lmtest`, `sandwich`, `dplyr`, `tidyr`, `zoo`, `ggplot2`, `sf`, `dagitty`, `ggdag`, `corrplot`, `stargazer`, `istatlab`, `situas`
 
 Packages auto-install via `install_if_missing()` function at script start.
 
@@ -95,9 +139,17 @@ w_t - p_t = β₀ + β₁(y/l)_t + β₂u_t + ε_t
 - Match rate atteso: 100% (sotto 100% è inaccettabile)
 - Join key: `COD_NUTS3_2024` (situas) ↔ `REF_AREA` (RACLI)
 
+## Output Organization
+
+Each analysis track has its own output directory:
+- `output/racli/` - 50+ RDS files + `grafici/` with 20+ PNG
+- `output/vecm/` - Model results RDS + `grafici/`
+- `output/imprese/` - 15+ RDS files + `grafici/` with 13 PNG
+- `output/preliminare/` - Prepared data for preliminary report
+
 ## Limitations
 
-1. Data is simulated (calibrated to ISTAT values, not direct API)
+1. VECM data is simulated (calibrated to ISTAT values, not direct API)
 2. National aggregation masks sectoral/regional heterogeneity
 3. Some endogeneity in productivity variable
 4. Parameter stability assumed across regimes
