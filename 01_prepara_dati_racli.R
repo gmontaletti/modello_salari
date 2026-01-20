@@ -90,8 +90,54 @@ get_ripartizione <- function(code, ripart_lookup = NULL) {
   ifelse(is.na(labels), ripart_code, labels)
 }
 
+# Carica mapping ITTER107 -> COD_UTS
+load_itter_mapping <- function() {
+  mapping_file <- "meta/mapping_itter_cod_uts.rds"
+  if (!file.exists(mapping_file)) {
+    cat(
+      "ATTENZIONE: mapping ITTER107 non trovato, eseguire 00_crea_mapping_itter.R\n"
+    )
+    return(NULL)
+  }
+  readRDS(mapping_file)
+}
+
+# Aggiunge codici ISTAT (cod_uts, cod_reg, cod_rip) ai dati
+add_istat_codes <- function(data, mapping) {
+  if (is.null(mapping)) {
+    return(data)
+  }
+
+  # Join per codice ITTER107 (campo 'area')
+  data_with_codes <- data %>%
+    left_join(
+      mapping[, c("itter107", "cod_uts", "cod_reg", "cod_rip")],
+      by = c("area" = "itter107")
+    )
+
+  # Verifica match rate per province
+  prov_data <- data_with_codes[data_with_codes$geo_level == "Provincia", ]
+  if (nrow(prov_data) > 0) {
+    n_matched <- sum(!is.na(prov_data$cod_uts))
+    n_total <- nrow(prov_data)
+    match_rate <- n_matched / n_total * 100
+
+    if (match_rate < 100) {
+      unmatched <- unique(prov_data$area[is.na(prov_data$cod_uts)])
+      cat(
+        "  ATTENZIONE: match rate codici ISTAT:",
+        sprintf("%.1f%%", match_rate),
+        "\n"
+      )
+      cat("  Province non matchate:", paste(unmatched, collapse = ", "), "\n")
+    }
+  }
+
+  return(data_with_codes)
+}
+
 # Pulisce e standardizza dataset RACLI
-clean_racli_data <- function(data) {
+clean_racli_data <- function(data, itter_mapping = NULL) {
   if (is.null(data)) {
     return(NULL)
   }
@@ -192,6 +238,66 @@ clean_racli_data <- function(data) {
   return(data_wide)
 }
 
+# Pulisce e standardizza dataset RACLI settoriale (File 17)
+clean_racli_sector_data <- function(data) {
+  if (is.null(data)) {
+    return(NULL)
+  }
+
+  # Rinomina e mappa colonne
+  data_clean <- data %>%
+    mutate(
+      anno = tempo_temp,
+      settore_code = as.character(ECON_ACTIVITY_NACE_2007),
+      settore = as.character(ECON_ACTIVITY_NACE_2007_label),
+      sesso = as.character(SEX_label),
+      tipo_dato_clean = case_when(
+        grepl("_AV_", DATA_TYPE) ~ "salario_medio",
+        grepl("_FIRD_", DATA_TYPE) ~ "D1",
+        grepl("_MED_", DATA_TYPE) ~ "salario_mediano",
+        grepl("_NIND_", DATA_TYPE) ~ "D9",
+        TRUE ~ as.character(DATA_TYPE)
+      )
+    )
+
+  # Pivota tipo_dato
+  data_wide <- data_clean %>%
+    select(anno, settore_code, settore, sesso, tipo_dato_clean, valore) %>%
+    pivot_wider(
+      names_from = tipo_dato_clean,
+      values_from = valore,
+      values_fn = mean
+    )
+
+  # Aggiungi D5 come alias di salario_mediano
+  if ("salario_mediano" %in% names(data_wide) && !"D5" %in% names(data_wide)) {
+    data_wide <- data_wide %>%
+      mutate(D5 = salario_mediano)
+  }
+
+  # Calcola variabili derivate se abbiamo decili
+  if (all(c("D1", "D5", "D9") %in% names(data_wide))) {
+    data_wide <- data_wide %>%
+      mutate(
+        D9_D1 = D9 / D1,
+        D9_D5 = D9 / D5,
+        D5_D1 = D5 / D1
+      )
+  }
+
+  # Identifica tipo settore (sezione principale vs dettaglio)
+  data_wide <- data_wide %>%
+    mutate(
+      tipo_settore = case_when(
+        settore_code %in% c("0010", "0011", "0020", "0038") ~ "Aggregato",
+        nchar(settore_code) == 2 ~ "Sezione NACE",
+        TRUE ~ "Dettaglio"
+      )
+    )
+
+  return(data_wide)
+}
+
 # 3. Caricamento e preparazione dati -----
 
 cat("Caricamento file RACLI...\n")
@@ -211,15 +317,33 @@ cat("  File 12: tipo contratto...")
 racli_12_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_12.rds")
 cat(" OK (", nrow(racli_12_raw), "righe)\n")
 
+# File 17: Settori NACE 2007
+cat("  File 17: settori economici...")
+racli_17_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_17.rds")
+cat(" OK (", nrow(racli_17_raw), "righe)\n")
+
 cat("\n")
 
-# 4. Pulizia e trasformazione -----
+# 4. Carica mapping ITTER107 -> COD_UTS -----
+
+cat("Caricamento mapping ITTER107 -> COD_UTS...\n")
+itter_mapping <- load_itter_mapping()
+if (!is.null(itter_mapping)) {
+  cat("  Mapping caricato:", nrow(itter_mapping), "codici\n\n")
+} else {
+  cat(
+    "  ATTENZIONE: mapping non disponibile, codici ISTAT non saranno aggiunti\n\n"
+  )
+}
+
+# 5. Pulizia e trasformazione -----
 
 cat("Pulizia e trasformazione dati...\n")
 
 # Dataset 1: Sesso (File 8)
 cat("  Preparazione dataset per sesso...")
 dati_settore_sesso <- clean_racli_data(racli_8_raw)
+dati_settore_sesso <- add_istat_codes(dati_settore_sesso, itter_mapping)
 # Aggiungi colonna settore fittizia per compatibilità con script 02
 dati_settore_sesso <- dati_settore_sesso %>%
   mutate(settore = "Totale economia")
@@ -229,6 +353,7 @@ cat(" OK (", nrow(dati_settore_sesso), "righe)\n")
 # Dataset 2: Educazione (File 11)
 cat("  Preparazione dataset educazione...")
 dati_educazione <- clean_racli_data(racli_11_raw)
+dati_educazione <- add_istat_codes(dati_educazione, itter_mapping)
 dati_educazione <- dati_educazione %>%
   mutate(settore = "Totale economia")
 
@@ -237,14 +362,20 @@ cat(" OK (", nrow(dati_educazione), "righe)\n")
 # Dataset 3: Tipo contratto (File 12)
 cat("  Preparazione dataset tipo contratto...")
 dati_contratto <- clean_racli_data(racli_12_raw)
+dati_contratto <- add_istat_codes(dati_contratto, itter_mapping)
 dati_contratto <- dati_contratto %>%
   mutate(settore = "Totale economia")
 
 cat(" OK (", nrow(dati_contratto), "righe)\n")
 
+# Dataset 4: Settori NACE (File 17)
+cat("  Preparazione dataset settori NACE...")
+dati_settori <- clean_racli_sector_data(racli_17_raw)
+cat(" OK (", nrow(dati_settori), "righe)\n")
+
 cat("\n")
 
-# 5. Validazione -----
+# 6. Validazione -----
 
 cat("==== Validazione Dati ====\n\n")
 
@@ -279,6 +410,24 @@ validate_dataset <- function(data, name) {
     cat("  Ordinamento decili corretto:", sprintf("%.1f%%", violazioni), "\n")
   }
 
+  # Check codici ISTAT per province
+  if ("cod_uts" %in% names(data)) {
+    prov_data <- data[data$geo_level == "Provincia", ]
+    if (nrow(prov_data) > 0) {
+      n_with_code <- sum(!is.na(prov_data$cod_uts))
+      n_total <- nrow(prov_data)
+      cat(
+        "  Codici ISTAT province:",
+        n_with_code,
+        "/",
+        n_total,
+        "(",
+        sprintf("%.1f%%", n_with_code / n_total * 100),
+        ")\n"
+      )
+    }
+  }
+
   cat("\n")
 }
 
@@ -286,7 +435,36 @@ validate_dataset(dati_settore_sesso, "Sesso")
 validate_dataset(dati_educazione, "Livello Educativo")
 validate_dataset(dati_contratto, "Tipo Contratto")
 
-# 6. Salvataggio -----
+# Validazione specifica per dati settoriali
+cat("Dataset: Settori NACE\n")
+cat("  Righe:", nrow(dati_settori), "\n")
+cat("  Anni:", paste(sort(unique(dati_settori$anno)), collapse = ", "), "\n")
+cat(
+  "  Settori totali:",
+  length(unique(dati_settori$settore_code)),
+  "\n"
+)
+cat(
+  "  Sezioni NACE principali:",
+  sum(
+    dati_settori$tipo_settore == "Sezione NACE" &
+      dati_settori$sesso == "totale" &
+      dati_settori$anno == 2022
+  ),
+  "\n"
+)
+if ("salario_mediano" %in% names(dati_settori)) {
+  cat(
+    "  Salario mediano range: €",
+    sprintf("%.2f", min(dati_settori$salario_mediano, na.rm = TRUE)),
+    " - €",
+    sprintf("%.2f", max(dati_settori$salario_mediano, na.rm = TRUE)),
+    "\n"
+  )
+}
+cat("\n")
+
+# 7. Salvataggio -----
 
 cat("==== Salvataggio Dataset ====\n\n")
 
@@ -302,5 +480,8 @@ cat("Salvato: output/dati_educazione.rds\n")
 
 saveRDS(dati_contratto, "output/dati_contratto.rds")
 cat("Salvato: output/dati_contratto.rds\n")
+
+saveRDS(dati_settori, "output/dati_settori.rds")
+cat("Salvato: output/dati_settori.rds\n")
 
 cat("\n==== Script completato con successo ====\n")
