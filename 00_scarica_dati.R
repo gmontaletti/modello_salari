@@ -25,20 +25,26 @@ saveRDS(datiocsedf, "data/oecdtax.rds")
 codelists <- download_codelists(dataset_ids = c("163_184", 
                                                 "151_874",
                                                 "155_358",
-                                                "92_507",
+                                                 "92_507",
                                                 "168_756",
                                                 "150_872",
-                                                "92_506",
+                                                 "92_506",
                                                 "150_875",
                                                 "533_957",
-                                                "98_197"
+                                                 "98_197",
+                                               "534_1037"
 ))
 
+# 534_1037 imprese con dipendenti
 
-#  racli salari orari ----
+dt <- download_istat_data("534_1037") # 
 
-dt <- download_istat_data("533_957") # 
-saveRDS(dt, "data/racli.rds")
+saveRDS(dt, "data/imprese_con_dipendenti.rds")
+dt <- apply_labels(dt)
+
+
+
+
 
 # dati produttività ----
 dt <- download_istat_data("98_197") # 
@@ -56,8 +62,8 @@ saveRDS(dt, "data/ore_lavorate.rds")
 # remotes::install_github("gmontaletti/istatlab", force = T)
 # renv::snapshot()
 
-dt <- download_istat_data("x") # 
-saveRDS(dt, "data/x.rds")
+# dt <- download_istat_data("x") # 
+# saveRDS(dt, "data/x.rds")
 
 
 

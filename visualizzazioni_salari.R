@@ -6,6 +6,7 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(gridExtra)
+library(patchwork)
 library(scales)
 
 # Tema personalizzato
@@ -24,6 +25,29 @@ theme_salari <- function() {
 # ------------------------------------------------------------------------------
 
 plot_time_series <- function(data) {
+  # Calcola variabili derivate se mancanti
+  if (
+    !"log_w_real" %in% names(data) && all(c("log_w", "log_p") %in% names(data))
+  ) {
+    data <- data %>%
+      mutate(log_w_real = log_w - log_p)
+  }
+
+  if (!"w_real" %in% names(data) && "log_w_real" %in% names(data)) {
+    data <- data %>%
+      mutate(w_real = exp(log_w_real))
+  }
+
+  if (!"prod" %in% names(data) && "log_prod" %in% names(data)) {
+    data <- data %>%
+      mutate(prod = exp(log_prod))
+  }
+
+  if (!"g_w_real" %in% names(data) && "log_w_real" %in% names(data)) {
+    data <- data %>%
+      mutate(g_w_real = c(rep(NA, 4), diff(log_w_real, 4)))
+  }
+
   # Salari reali vs Produttività
   p1 <- ggplot(data, aes(x = date)) +
     geom_line(aes(y = scale(w_real), color = "Salari Reali"), linewidth = 0.8) +
@@ -99,6 +123,24 @@ plot_time_series <- function(data) {
 # ------------------------------------------------------------------------------
 
 plot_wage_productivity <- function(data) {
+  # Calcola variabili derivate se mancanti
+  if (
+    !"log_w_real" %in% names(data) && all(c("log_w", "log_p") %in% names(data))
+  ) {
+    data <- data %>%
+      mutate(log_w_real = log_w - log_p)
+  }
+
+  if (!"w_real" %in% names(data) && "log_w_real" %in% names(data)) {
+    data <- data %>%
+      mutate(w_real = exp(log_w_real))
+  }
+
+  if (!"prod" %in% names(data) && "log_prod" %in% names(data)) {
+    data <- data %>%
+      mutate(prod = exp(log_prod))
+  }
+
   data_plot <- data %>%
     mutate(
       periodo = case_when(
@@ -133,6 +175,19 @@ plot_wage_productivity <- function(data) {
 # ------------------------------------------------------------------------------
 
 plot_phillips_curve <- function(data) {
+  # Calcola variabili derivate se mancanti
+  if (
+    !"log_w_real" %in% names(data) && all(c("log_w", "log_p") %in% names(data))
+  ) {
+    data <- data %>%
+      mutate(log_w_real = log_w - log_p)
+  }
+
+  if (!"g_w_real" %in% names(data) && "log_w_real" %in% names(data)) {
+    data <- data %>%
+      mutate(g_w_real = c(rep(NA, 4), diff(log_w_real, 4)))
+  }
+
   data_plot <- data %>%
     filter(!is.na(g_w_real)) %>%
     mutate(
@@ -241,6 +296,24 @@ plot_fevd_custom <- function(fevd_obj, variable = "w") {
 # ------------------------------------------------------------------------------
 
 plot_period_comparison <- function(data) {
+  # Calcola variabili derivate se mancanti
+  if (
+    !"log_w_real" %in% names(data) && all(c("log_w", "log_p") %in% names(data))
+  ) {
+    data <- data %>%
+      mutate(log_w_real = log_w - log_p)
+  }
+
+  if (!"w_real" %in% names(data) && "log_w_real" %in% names(data)) {
+    data <- data %>%
+      mutate(w_real = exp(log_w_real))
+  }
+
+  if (!"prod" %in% names(data) && "log_prod" %in% names(data)) {
+    data <- data %>%
+      mutate(prod = exp(log_prod))
+  }
+
   period_stats <- data %>%
     mutate(
       periodo = case_when(
@@ -291,6 +364,29 @@ plot_period_comparison <- function(data) {
 # ------------------------------------------------------------------------------
 
 plot_correlation_matrix <- function(data) {
+  # Calcola variabili derivate se mancanti
+  if (
+    !"log_w_real" %in% names(data) && all(c("log_w", "log_p") %in% names(data))
+  ) {
+    data <- data %>%
+      mutate(log_w_real = log_w - log_p)
+  }
+
+  if (!"w_real" %in% names(data) && "log_w_real" %in% names(data)) {
+    data <- data %>%
+      mutate(w_real = exp(log_w_real))
+  }
+
+  if (!"prod" %in% names(data) && "log_prod" %in% names(data)) {
+    data <- data %>%
+      mutate(prod = exp(log_prod))
+  }
+
+  if (!"pil" %in% names(data) && "log_pil" %in% names(data)) {
+    data <- data %>%
+      mutate(pil = exp(log_pil))
+  }
+
   cor_data <- data %>%
     select(w_real, prod, u, occ, cuneo, prec, pil) %>%
     na.omit()
@@ -420,6 +516,24 @@ plot_cusum <- function(
 plot_structural_breaks <- function(break_results, data) {
   if (!require("strucchange", quietly = TRUE)) {
     stop("Richiesto pacchetto strucchange")
+  }
+
+  # Calcola variabili derivate se mancanti
+  if (
+    !"log_w_real" %in% names(data) && all(c("log_w", "log_p") %in% names(data))
+  ) {
+    data <- data %>%
+      mutate(log_w_real = log_w - log_p)
+  }
+
+  if (!"g_w_real" %in% names(data) && "log_w_real" %in% names(data)) {
+    data <- data %>%
+      mutate(g_w_real = c(rep(NA, 4), diff(log_w_real, 4)))
+  }
+
+  if (!"g_prod" %in% names(data) && "log_prod" %in% names(data)) {
+    data <- data %>%
+      mutate(g_prod = c(rep(NA, 4), diff(log_prod, 4)))
   }
 
   data_model <- data %>%
@@ -1049,4 +1163,828 @@ generate_all_plots <- function(
 
 cat(
   "Script visualizzazioni caricato. Usare generate_all_plots(data, ...) per generare i grafici.\n"
+)
+
+# ==============================================================================
+# VISUALIZZAZIONI TVP-VAR
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 16. COEFFICIENTI TVP NEL TEMPO
+# ------------------------------------------------------------------------------
+
+plot_tvp_coefficients <- function(
+  tvp_coefs,
+  coef_name = "elasticity_prod",
+  title = "Evoluzione Coefficienti TVP-VAR"
+) {
+  if (is.null(tvp_coefs) || !coef_name %in% names(tvp_coefs)) {
+    message("Coefficiente ", coef_name, " non disponibile")
+    return(NULL)
+  }
+
+  # Prepara dati
+  plot_df <- data.frame(
+    date = tvp_coefs$date,
+    value = tvp_coefs[[coef_name]]
+  )
+
+  # Calcola media mobile per smoothing
+  plot_df$smooth <- zoo::rollmean(
+    plot_df$value,
+    k = 4,
+    fill = NA,
+    align = "center"
+  )
+
+  # Date di crisi per annotazioni
+  crisis_dates <- as.Date(c("2008-09-15", "2012-06-01", "2020-03-01"))
+  crisis_labels <- c("Lehman", "Crisi debito", "COVID")
+
+  p <- ggplot(plot_df, aes(x = date)) +
+    geom_line(aes(y = value), color = "#457B9D", alpha = 0.4, linewidth = 0.5) +
+    geom_line(aes(y = smooth), color = "#E63946", linewidth = 1.2) +
+    geom_vline(
+      xintercept = crisis_dates,
+      linetype = "dashed",
+      color = "grey50",
+      alpha = 0.7
+    ) +
+    annotate(
+      "text",
+      x = crisis_dates,
+      y = max(plot_df$value, na.rm = TRUE),
+      label = crisis_labels,
+      hjust = 0,
+      vjust = 1,
+      size = 2.5,
+      angle = 90
+    ) +
+    labs(
+      title = title,
+      subtitle = paste("Coefficiente:", coef_name),
+      x = NULL,
+      y = "Valore coefficiente"
+    ) +
+    theme_salari()
+
+  return(p)
+}
+
+# ------------------------------------------------------------------------------
+# 17. HEATMAP COEFFICIENTI TVP
+# ------------------------------------------------------------------------------
+
+plot_tvp_heatmap <- function(tvp_coefs, exclude_cols = c("date", "periodo")) {
+  if (is.null(tvp_coefs)) {
+    message("Coefficienti TVP non disponibili")
+    return(NULL)
+  }
+
+  # Seleziona solo colonne numeriche
+  numeric_cols <- setdiff(names(tvp_coefs), exclude_cols)
+  numeric_cols <- numeric_cols[sapply(tvp_coefs[numeric_cols], is.numeric)]
+
+  if (length(numeric_cols) == 0) {
+    message("Nessun coefficiente numerico trovato")
+    return(NULL)
+  }
+
+  # Prepara matrice
+  coef_matrix <- as.matrix(tvp_coefs[, numeric_cols])
+
+  # Normalizza per visualizzazione
+  coef_scaled <- scale(coef_matrix)
+
+  # Converti in formato long
+  coef_long <- data.frame(
+    date = rep(tvp_coefs$date, ncol(coef_scaled)),
+    coefficient = rep(numeric_cols, each = nrow(coef_scaled)),
+    value = as.vector(coef_scaled)
+  )
+
+  p <- ggplot(coef_long, aes(x = date, y = coefficient, fill = value)) +
+    geom_tile() +
+    scale_fill_gradient2(
+      low = "#2A9D8F",
+      mid = "white",
+      high = "#E63946",
+      midpoint = 0,
+      name = "Valore\n(standardizzato)"
+    ) +
+    labs(
+      title = "Evoluzione Coefficienti TVP-VAR",
+      subtitle = "Heatmap valori standardizzati nel tempo",
+      x = NULL,
+      y = "Coefficiente"
+    ) +
+    theme_salari() +
+    theme(
+      axis.text.y = element_text(size = 8),
+      legend.position = "right"
+    )
+
+  return(p)
+}
+
+# ------------------------------------------------------------------------------
+# 18. ELASTICITÀ SALARI-PRODUTTIVITÀ NEL TEMPO
+# ------------------------------------------------------------------------------
+
+plot_tvp_elasticity <- function(
+  tvp_coefs,
+  vecm_elasticity = NULL,
+  title = "Risposta dei Salari alla Produttività"
+) {
+  if (is.null(tvp_coefs) || !"elasticity_prod" %in% names(tvp_coefs)) {
+    message("Coefficienti TVP non disponibili")
+    return(NULL)
+  }
+
+  plot_df <- data.frame(
+    date = tvp_coefs$date,
+    tvp = tvp_coefs$elasticity_prod
+  )
+
+  # Aggiungi media mobile
+  plot_df$tvp_smooth <- zoo::rollmean(
+    plot_df$tvp,
+    k = 8,
+    fill = NA,
+    align = "center"
+  )
+
+  # Calcola banda proporzionale ai dati
+  data_sd <- sd(plot_df$tvp, na.rm = TRUE)
+  ribbon_width <- max(0.01, data_sd * 0.5)
+
+  p <- ggplot(plot_df, aes(x = date)) +
+    geom_ribbon(
+      aes(
+        ymin = tvp_smooth - ribbon_width,
+        ymax = tvp_smooth + ribbon_width
+      ),
+      fill = "#457B9D",
+      alpha = 0.2
+    ) +
+    geom_line(aes(y = tvp), color = "#457B9D", alpha = 0.3, linewidth = 0.5) +
+    geom_line(aes(y = tvp_smooth), color = "#457B9D", linewidth = 1.2) +
+    geom_hline(
+      yintercept = 0,
+      linetype = "solid",
+      color = "grey30",
+      linewidth = 0.5
+    )
+
+  # Aggiungi riferimento VECM se disponibile (nota: scala diversa)
+  if (!is.null(vecm_elasticity)) {
+    p <- p +
+      geom_hline(
+        yintercept = vecm_elasticity,
+        linetype = "dashed",
+        color = "#E63946",
+        linewidth = 1
+      ) +
+      annotate(
+        "text",
+        x = min(plot_df$date),
+        y = vecm_elasticity + 0.05,
+        label = paste("VECM lungo periodo:", round(vecm_elasticity, 2)),
+        hjust = 0,
+        color = "#E63946",
+        size = 3
+      )
+  }
+
+  # Annotazioni crisi
+  crisis_dates <- as.Date(c("2008-09-15", "2012-06-01", "2020-03-01"))
+
+  p <- p +
+    geom_vline(
+      xintercept = crisis_dates,
+      linetype = "dotted",
+      color = "grey50",
+      alpha = 0.7
+    ) +
+    labs(
+      title = title,
+      subtitle = "Coefficienti TVP-VAR con media mobile (8 trimestri)",
+      x = NULL,
+      y = "Coefficiente risposta (trimestrale)"
+    ) +
+    theme_salari()
+
+  return(p)
+}
+
+# ------------------------------------------------------------------------------
+# 19. IRF PER PERIODI SELEZIONATI
+# ------------------------------------------------------------------------------
+
+plot_tvp_irf_selected <- function(
+  tvp_irf_results,
+  title = "IRF Tempo-Varianti: Shock Produttività → Salari"
+) {
+  if (is.null(tvp_irf_results) || is.null(tvp_irf_results$irf)) {
+    message("IRF TVP non disponibili")
+    return(NULL)
+  }
+
+  irf_list <- tvp_irf_results$irf
+  n_ahead <- tvp_irf_results$n_ahead
+
+  # Costruisci dataframe con tutti gli IRF
+  irf_df <- data.frame()
+
+  for (period_name in names(irf_list)) {
+    irf_entry <- irf_list[[period_name]]
+
+    # Estrai oggetto tvirf e indice temporale dalla nuova struttura
+    irf_obj <- irf_entry$tvirf
+    time_idx <- irf_entry$time_idx
+
+    # Estrai valori IRF dalla struttura tvIRF
+    # La struttura è: irf_obj$irf$<impulse_name>[time, 1, horizon]
+    if (!is.null(irf_obj) && inherits(irf_obj, "tvirf")) {
+      impulse_name <- irf_obj$impulse
+
+      irf_values <- tryCatch(
+        {
+          # Estrai la matrice IRF per l'impulso
+          irf_array <- irf_obj$irf[[impulse_name]]
+
+          # L'array ha dimensioni [n_obs, 1, n_ahead+1]
+          # Usa l'indice temporale corretto salvato durante il calcolo IRF
+          # (non mid_idx che dava lo stesso valore per tutti i periodi)
+          as.numeric(irf_array[time_idx, 1, ])
+        },
+        error = function(e) {
+          message(paste(
+            "Errore estrazione IRF per",
+            period_name,
+            ":",
+            e$message
+          ))
+          return(NULL)
+        }
+      )
+
+      if (!is.null(irf_values) && length(irf_values) > 0) {
+        temp_df <- data.frame(
+          horizon = 0:(length(irf_values) - 1),
+          response = irf_values,
+          period = period_name
+        )
+        irf_df <- rbind(irf_df, temp_df)
+      }
+    }
+  }
+
+  if (nrow(irf_df) == 0) {
+    message("Nessun IRF valido trovato")
+    return(NULL)
+  }
+
+  # Colori per periodi
+  n_periods <- length(unique(irf_df$period))
+  colors <- c("#2A9D8F", "#E9C46A", "#F4A261", "#E63946")[1:n_periods]
+
+  p <- ggplot(irf_df, aes(x = horizon, y = response, color = period)) +
+    geom_line(linewidth = 1.2) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+    scale_color_manual(values = colors) +
+    labs(
+      title = title,
+      subtitle = "Confronto risposta a shock unitario in diversi periodi",
+      x = "Trimestri",
+      y = "Risposta",
+      color = "Periodo"
+    ) +
+    theme_salari() +
+    theme(legend.position = "bottom")
+
+  return(p)
+}
+
+# ------------------------------------------------------------------------------
+# 20. CONFRONTO VECM vs TVP-VAR
+# ------------------------------------------------------------------------------
+
+plot_tvp_comparison <- function(
+  tvp_coefs,
+  rolling_results = NULL,
+  vecm_elasticity = 0.85,
+  title = "Confronto Stime: VECM vs Rolling vs TVP-VAR"
+) {
+  if (is.null(tvp_coefs)) {
+    message("Coefficienti TVP non disponibili")
+    return(NULL)
+  }
+
+  # Prepara dati TVP
+  tvp_df <- data.frame(
+    date = tvp_coefs$date,
+    value = tvp_coefs$elasticity_prod,
+    method = "TVP-VAR"
+  )
+
+  # Aggiungi rolling se disponibile
+  if (!is.null(rolling_results) && "beta_prod" %in% names(rolling_results)) {
+    rolling_df <- data.frame(
+      date = rolling_results$end_date,
+      value = rolling_results$beta_prod,
+      method = "Rolling VECM"
+    )
+    plot_df <- rbind(tvp_df, rolling_df)
+  } else {
+    plot_df <- tvp_df
+  }
+
+  p <- ggplot(plot_df, aes(x = date, y = value, color = method)) +
+    geom_line(linewidth = 0.8, alpha = 0.7) +
+    geom_hline(
+      yintercept = vecm_elasticity,
+      linetype = "dashed",
+      color = "black",
+      linewidth = 1
+    ) +
+    annotate(
+      "text",
+      x = min(plot_df$date),
+      y = vecm_elasticity + 0.05,
+      label = paste("VECM costante:", vecm_elasticity),
+      hjust = 0,
+      size = 3
+    ) +
+    scale_color_manual(
+      values = c(
+        "TVP-VAR" = "#457B9D",
+        "Rolling VECM" = "#E63946"
+      )
+    ) +
+    labs(
+      title = title,
+      subtitle = "Elasticità salari-produttività con diversi metodi",
+      x = NULL,
+      y = "Elasticità",
+      color = "Metodo"
+    ) +
+    theme_salari() +
+    theme(legend.position = "bottom")
+
+  return(p)
+}
+
+# ------------------------------------------------------------------------------
+# 21. SEMI-ELASTICITÀ ALLA DISOCCUPAZIONE
+# ------------------------------------------------------------------------------
+
+plot_tvp_phillips <- function(
+  tvp_coefs,
+  title = "Evoluzione Curva di Phillips (TVP-VAR)"
+) {
+  if (is.null(tvp_coefs) || !"semielast_u" %in% names(tvp_coefs)) {
+    message("Semi-elasticità disoccupazione non disponibile")
+    return(NULL)
+  }
+
+  plot_df <- data.frame(
+    date = tvp_coefs$date,
+    value = tvp_coefs$semielast_u
+  )
+
+  plot_df$smooth <- zoo::rollmean(
+    plot_df$value,
+    k = 8,
+    fill = NA,
+    align = "center"
+  )
+
+  p <- ggplot(plot_df, aes(x = date)) +
+    geom_line(aes(y = value), color = "#E63946", alpha = 0.3, linewidth = 0.5) +
+    geom_line(aes(y = smooth), color = "#E63946", linewidth = 1.2) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+    geom_vline(
+      xintercept = as.Date(c("2008-09-15", "2012-06-01", "2020-03-01")),
+      linetype = "dotted",
+      color = "grey50"
+    ) +
+    labs(
+      title = title,
+      subtitle = "Semi-elasticità salari-disoccupazione nel tempo",
+      x = NULL,
+      y = "Semi-elasticità"
+    ) +
+    theme_salari()
+
+  return(p)
+}
+
+# ------------------------------------------------------------------------------
+# 22. VISUALIZZAZIONI SHOCK REALISTICI (SCALA NATURALE)
+# ------------------------------------------------------------------------------
+
+# 22.1 Grafico IRF singolo periodo con scala naturale ----
+plot_realistic_irf_single <- function(
+  irf_result,
+  title = NULL,
+  subtitle = NULL,
+  y_label = "Variazione Salari Reali (%)",
+  x_label = "Trimestri",
+  show_zero_line = TRUE,
+  color = "#1D3557"
+) {
+  if (is.null(irf_result)) {
+    message("Nessun risultato IRF fornito")
+    return(NULL)
+  }
+
+  # Prepara dati per il plot
+  plot_df <- data.frame(
+    horizon = irf_result$horizons,
+    response = irf_result$response_pct
+  )
+
+  # Titolo automatico se non specificato
+  if (is.null(title)) {
+    title <- paste0(
+      "Risposta dei Salari Reali a Shock ",
+      irf_result$shock_description
+    )
+  }
+
+  # Sottotitolo automatico
+  if (is.null(subtitle)) {
+    subtitle <- paste0(
+      "Periodo: ",
+      irf_result$period,
+      " | Scala: variazione percentuale | Fattore: ",
+      round(irf_result$scaling_factor, 2),
+      "×"
+    )
+  }
+
+  # Crea plot
+  p <- ggplot(plot_df, aes(x = horizon, y = response)) +
+    geom_line(color = color, linewidth = 1.2) +
+    geom_point(color = color, size = 2, alpha = 0.7) +
+    labs(
+      title = title,
+      subtitle = subtitle,
+      x = x_label,
+      y = y_label
+    ) +
+    theme_salari()
+
+  # Aggiungi linea zero
+  if (show_zero_line) {
+    p <- p + geom_hline(yintercept = 0, linetype = "dashed", color = "grey50")
+  }
+
+  # Annotazione shock
+  max_y <- max(plot_df$response)
+  min_y <- min(plot_df$response)
+  y_range <- max_y - min_y
+
+  p <- p +
+    annotate(
+      "text",
+      x = max(plot_df$horizon) * 0.75,
+      y = min_y + y_range * 0.95,
+      label = paste0("Shock: ", irf_result$shock_description),
+      hjust = 0,
+      size = 3.5,
+      color = "grey30",
+      fontface = "italic"
+    )
+
+  return(p)
+}
+
+# 22.2 Confronto IRF tra periodi multipli ----
+plot_realistic_irf_comparison <- function(
+  irf_comparison,
+  title = NULL,
+  subtitle = "Confronto tra periodi storici",
+  y_label = "Variazione Salari Reali (%)",
+  x_label = "Trimestri",
+  show_legend = TRUE,
+  period_colors = c(
+    "2005" = "#2A9D8F",
+    "2015" = "#E9C46A",
+    "2023" = "#E63946"
+  )
+) {
+  if (is.null(irf_comparison) || length(irf_comparison) == 0) {
+    message("Nessun risultato IRF fornito per confronto")
+    return(NULL)
+  }
+
+  # Combina dati da tutti i periodi
+  plot_list <- list()
+  for (period_name in names(irf_comparison)) {
+    irf_data <- irf_comparison[[period_name]]
+    if (!is.null(irf_data)) {
+      plot_list[[period_name]] <- data.frame(
+        horizon = irf_data$horizons,
+        response = irf_data$response_pct,
+        period = period_name,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+
+  plot_df <- do.call(rbind, plot_list)
+
+  # Titolo automatico
+  if (is.null(title)) {
+    shock_type <- attr(irf_comparison, "shock_type")
+    shock_value <- attr(irf_comparison, "shock_value")
+    title <- paste0(
+      "Evoluzione Temporale della Risposta a Shock ",
+      toupper(shock_type),
+      " ",
+      ifelse(shock_value > 0, "+", ""),
+      shock_value,
+      ifelse(shock_type %in% c("prod", "p", "w"), "%", "pp")
+    )
+  }
+
+  # Crea plot
+  p <- ggplot(
+    plot_df,
+    aes(x = horizon, y = response, color = period, group = period)
+  ) +
+    geom_line(linewidth = 1.2) +
+    geom_point(size = 2, alpha = 0.7) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+    scale_color_manual(
+      values = period_colors,
+      name = "Periodo"
+    ) +
+    labs(
+      title = title,
+      subtitle = subtitle,
+      x = x_label,
+      y = y_label
+    ) +
+    theme_salari()
+
+  if (!show_legend) {
+    p <- p + theme(legend.position = "none")
+  } else {
+    p <- p +
+      theme(
+        legend.position = "bottom",
+        legend.title = element_text(face = "bold")
+      )
+  }
+
+  # Annotazioni eventi storici
+  event_dates <- c(2008, 2012, 2020)
+  max_y <- max(plot_df$response)
+
+  return(p)
+}
+
+# 22.3 Griglia comparativa 4 shock ----
+plot_realistic_irf_grid <- function(
+  irf_list,
+  main_title = "Risposta Salari Reali a Diversi Shock (Periodo Recente)",
+  shock_labels = list(
+    prod = "Produttività +10%",
+    unemp = "Disoccupazione +2pp",
+    infl = "Inflazione +5%",
+    wedge = "Cuneo Fiscale -3pp"
+  )
+) {
+  if (is.null(irf_list) || length(irf_list) == 0) {
+    message("Nessun risultato IRF fornito per griglia")
+    return(NULL)
+  }
+
+  # Prepara lista plot
+  plots <- list()
+
+  # Plot 1: Produttività
+  if (!is.null(irf_list$prod)) {
+    plots$prod <- plot_realistic_irf_single(
+      irf_list$prod,
+      title = shock_labels$prod,
+      subtitle = NULL,
+      y_label = "Δ Salari (%)",
+      color = "#2A9D8F"
+    ) +
+      theme(plot.title = element_text(size = 11))
+  }
+
+  # Plot 2: Disoccupazione
+  if (!is.null(irf_list$unemp)) {
+    plots$unemp <- plot_realistic_irf_single(
+      irf_list$unemp,
+      title = shock_labels$unemp,
+      subtitle = NULL,
+      y_label = "Δ Salari (%)",
+      color = "#E76F51"
+    ) +
+      theme(plot.title = element_text(size = 11))
+  }
+
+  # Plot 3: Inflazione
+  if (!is.null(irf_list$infl)) {
+    plots$infl <- plot_realistic_irf_single(
+      irf_list$infl,
+      title = shock_labels$infl,
+      subtitle = NULL,
+      y_label = "Δ Salari (%)",
+      color = "#E9C46A"
+    ) +
+      theme(plot.title = element_text(size = 11))
+  }
+
+  # Plot 4: Cuneo fiscale
+  if (!is.null(irf_list$wedge)) {
+    plots$wedge <- plot_realistic_irf_single(
+      irf_list$wedge,
+      title = shock_labels$wedge,
+      subtitle = NULL,
+      y_label = "Δ Salari (%)",
+      color = "#457B9D"
+    ) +
+      theme(plot.title = element_text(size = 11))
+  }
+
+  # Combina in griglia 2x2
+  if (length(plots) >= 4) {
+    combined <- (plots$prod + plots$unemp) / (plots$infl + plots$wedge)
+    combined <- combined +
+      plot_annotation(
+        title = main_title,
+        theme = theme(plot.title = element_text(size = 14, face = "bold"))
+      )
+    return(combined)
+  } else {
+    message("Servono almeno 4 shock per la griglia 2x2")
+    return(NULL)
+  }
+}
+
+# 22.4 Tabella numerica IRF ----
+create_irf_table <- function(
+  irf_result,
+  horizons = c(1, 4, 8, 12, 20),
+  caption = "Risposta a Shock Realistico",
+  digits = 2
+) {
+  if (is.null(irf_result)) {
+    message("Nessun risultato IRF fornito")
+    return(NULL)
+  }
+
+  # Estrai valori agli orizzonti specificati
+  idx <- match(horizons, irf_result$horizons)
+  idx <- idx[!is.na(idx)]
+
+  if (length(idx) == 0) {
+    message("Nessun orizzonte valido trovato")
+    return(NULL)
+  }
+
+  table_df <- data.frame(
+    Orizzonte = paste0(irf_result$horizons[idx], " trim"),
+    `Risposta Log` = round(irf_result$response_log[idx], digits),
+    `Risposta %` = paste0(
+      ifelse(irf_result$response_pct[idx] > 0, "+", ""),
+      round(irf_result$response_pct[idx], digits),
+      "%"
+    ),
+    check.names = FALSE
+  )
+
+  # Usa kable se disponibile
+  if (requireNamespace("kableExtra", quietly = TRUE)) {
+    table_output <- kableExtra::kable(
+      table_df,
+      caption = paste0(
+        caption,
+        " (",
+        irf_result$shock_description,
+        ", Periodo: ",
+        irf_result$period,
+        ")"
+      ),
+      booktabs = TRUE,
+      align = c("l", "r", "r")
+    ) %>%
+      kableExtra::kable_styling(
+        latex_options = c("striped", "hold_position"),
+        full_width = FALSE
+      )
+    return(table_output)
+  } else {
+    # Fallback a base R
+    return(table_df)
+  }
+}
+
+# ------------------------------------------------------------------------------
+# 23. DIAGNOSTICA CONVERGENZA MCMC (per shrinkTVP)
+# ------------------------------------------------------------------------------
+
+plot_tvp_posterior <- function(
+  tvp_bayesian,
+  param_idx = 1,
+  title = "Diagnostica Posteriore MCMC"
+) {
+  if (is.null(tvp_bayesian) || is.null(tvp_bayesian$model)) {
+    message("Modello bayesiano non disponibile")
+    return(NULL)
+  }
+
+  # Estrai catena MCMC per un parametro
+  beta_chain <- tvp_bayesian$model$beta[, param_idx, ]
+
+  # Traceplot
+  trace_df <- data.frame(
+    iteration = 1:nrow(beta_chain),
+    value = beta_chain[, ncol(beta_chain)] # Ultimo periodo
+  )
+
+  p1 <- ggplot(trace_df, aes(x = iteration, y = value)) +
+    geom_line(color = "#457B9D", alpha = 0.5) +
+    labs(
+      title = "Traceplot MCMC",
+      x = "Iterazione",
+      y = "Valore"
+    ) +
+    theme_salari()
+
+  # Densità posteriore
+  p2 <- ggplot(trace_df, aes(x = value)) +
+    geom_density(fill = "#457B9D", alpha = 0.5) +
+    labs(
+      title = "Densità Posteriore",
+      x = "Valore",
+      y = "Densità"
+    ) +
+    theme_salari()
+
+  gridExtra::grid.arrange(p1, p2, ncol = 2)
+}
+
+# ------------------------------------------------------------------------------
+# 23. FUNZIONE MASTER PLOT TVP
+# ------------------------------------------------------------------------------
+
+generate_tvp_plots <- function(
+  tvpvar_results,
+  rolling_results = NULL,
+  vecm_elasticity = 0.85
+) {
+  cat("\nGenerazione grafici TVP-VAR...\n")
+
+  if (is.null(tvpvar_results)) {
+    cat("   Risultati TVP-VAR non disponibili.\n")
+    return(invisible(NULL))
+  }
+
+  # Coefficienti TVP
+  if (!is.null(tvpvar_results$coefficients)) {
+    cat("  - Evoluzione coefficienti TVP\n")
+    print(plot_tvp_coefficients(tvpvar_results$coefficients))
+
+    cat("  - Elasticità salari-produttività\n")
+    print(plot_tvp_elasticity(
+      tvpvar_results$coefficients,
+      vecm_elasticity = vecm_elasticity
+    ))
+
+    cat("  - Heatmap coefficienti\n")
+    print(plot_tvp_heatmap(tvpvar_results$coefficients))
+
+    cat("  - Semi-elasticità Phillips\n")
+    print(plot_tvp_phillips(tvpvar_results$coefficients))
+
+    # Confronto con rolling
+    if (!is.null(rolling_results)) {
+      cat("  - Confronto metodi\n")
+      print(plot_tvp_comparison(
+        tvpvar_results$coefficients,
+        rolling_results,
+        vecm_elasticity
+      ))
+    }
+  }
+
+  # IRF tempo-varianti
+  if (!is.null(tvpvar_results$irf)) {
+    cat("  - IRF per periodi selezionati\n")
+    print(plot_tvp_irf_selected(tvpvar_results$irf))
+  }
+
+  cat("\nGrafici TVP-VAR completati.\n")
+}
+
+cat(
+  "Funzioni TVP-VAR caricate. Usare generate_tvp_plots(tvpvar_results) per generare i grafici.\n"
 )

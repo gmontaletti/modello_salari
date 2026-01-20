@@ -652,10 +652,13 @@ heatmap_data$settore_short <- factor(
 p19 <- heatmap_data %>%
   ggplot(aes(x = ripartizione, y = settore_short, fill = salario_mediano)) +
   geom_tile(color = "white", linewidth = 0.5) +
-  geom_text(
+  geom_label(
     aes(label = sprintf("€%.1f", salario_mediano)),
-    size = 2.5,
-    color = "white"
+    size = 2.3,
+    fill = "white",
+    alpha = 0.85,
+    label.size = 0,
+    label.padding = unit(0.12, "lines")
   ) +
   scale_fill_viridis_c(
     option = "plasma",

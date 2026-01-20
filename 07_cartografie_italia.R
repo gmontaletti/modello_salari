@@ -1,11 +1,11 @@
 # 07_cartografie_italia.R -----
 # Cartografie differenziali salariali province italiane
+# Join basato su codici ISTAT (COD_UTS), NON su normalizzazione stringhe
 # Autore: Giampaolo Montaletti (ORCID: 0009-0002-5327-1122)
-# Data: 2026-01-14
+# Data: 2026-01-16
 
 # 1. Setup ambiente -----
 
-# Installa pacchetti se mancanti
 if (!require("sf", quietly = TRUE)) {
   install.packages(
     "sf",
@@ -31,84 +31,100 @@ suppressPackageStartupMessages({
 
 cat("==== Cartografie Differenziali Salariali Italia ====\n\n")
 
-# Funzione di normalizzazione nomi province per matching robusto
-normalize_province_name <- function(x) {
-  x <- toupper(trimws(x))
-  x <- iconv(x, from = "UTF-8", to = "ASCII//TRANSLIT")
-  x <- gsub("-", " ", x)
-  x <- gsub("\\s+", " ", x)
-  # Gestisci variazioni note tra RACLI e GADM
-  x <- gsub("REGGIO NELL'EMILIA", "REGGIO EMILIA", x)
-  x <- gsub("REGGIO DI CALABRIA", "REGGIO CALABRIA", x)
-  x <- gsub("PESARO E URBINO", "PESARO URBINO", x)
-  x <- gsub("MASSA CARRARA", "MASSA", x)
-  x <- gsub("VERBANO CUSIO OSSOLA", "VERBANIA", x)
-  x <- gsub("MONZA E DELLA BRIANZA", "MONZA BRIANZA", x)
-  x <- gsub("BARLETTA ANDRIA TRANI", "BARLETTA", x)
-  x <- gsub("SUD SARDEGNA", "CARBONIA IGLESIAS", x)
-  return(x)
-}
-
-# 2. Carica shapefile e dati -----
+# 2. Carica shapefile ISTAT e dati -----
 
 cat("==== Caricamento Dati ====\n\n")
 
-# Shapefile province
-italy_sf <- readRDS("data/shp/province_italia_gadm.rds")
-cat("Shapefile province: ", nrow(italy_sf), " geometrie\n")
+# Shapefile province ISTAT (con COD_UTS)
+shp_file <- "data/shp/province_italia_istat.rds"
+if (!file.exists(shp_file)) {
+  cat("ERRORE: shapefile ISTAT non trovato.\n")
+  cat("Eseguire prima: Rscript 00_download_shapefile.R\n")
+  stop("Shapefile mancante")
+}
 
-# Dati RACLI
+italy_sf <- readRDS(shp_file)
+cat("Shapefile province ISTAT:", nrow(italy_sf), "geometrie\n")
+cat("  Colonna join: COD_UTS\n")
+
+# Dati RACLI (con cod_uts)
 dati_sesso <- readRDS("output/dati_settore_sesso.rds")
-dati_clustering <- readRDS("output/dati_clustering.rds")
+
+# Verifica che cod_uts sia presente
+if (!"cod_uts" %in% names(dati_sesso)) {
+  cat("ERRORE: colonna cod_uts non trovata nei dati RACLI.\n")
+  cat(
+    "Eseguire prima: Rscript 00_crea_mapping_itter.R && Rscript 01_prepara_dati_racli.R\n"
+  )
+  stop("Codici ISTAT mancanti")
+}
+
+# Verifica file clustering (opzionale)
+dati_clustering <- NULL
+if (file.exists("output/dati_clustering.rds")) {
+  dati_clustering <- readRDS("output/dati_clustering.rds")
+}
 
 # Filtra dati provinciali 2022
 dati_province_2022 <- dati_sesso %>%
   filter(geo_level == "Provincia", sesso == "totale", anno == 2022) %>%
-  select(area, area_label, ripartizione, salario_mediano, D9_D1)
+  select(area, area_label, ripartizione, salario_mediano, D9_D1, cod_uts)
 
-cat("Dati RACLI province 2022: ", nrow(dati_province_2022), " osservazioni\n\n")
+cat("Dati RACLI province 2022:", nrow(dati_province_2022), "osservazioni\n\n")
 
-# 3. Join shapefile con dati RACLI -----
+# 3. Join shapefile con dati RACLI su COD_UTS -----
 
-cat("==== Join Shapefile + Dati RACLI ====\n\n")
+cat("==== Join Shapefile + Dati RACLI (su COD_UTS) ====\n\n")
 
-# Join per nome provincia con normalizzazione robusta
-# GADM usa NAME_2 per nome provincia
+# Join per codice ISTAT COD_UTS
 map_data <- italy_sf %>%
-  mutate(provincia_clean = normalize_province_name(NAME_2)) %>%
   left_join(
-    dati_province_2022 %>%
-      mutate(provincia_clean = normalize_province_name(area_label)),
-    by = "provincia_clean"
+    dati_province_2022,
+    by = c("COD_UTS" = "cod_uts")
   )
 
 # Check join success
 n_matched <- sum(!is.na(map_data$salario_mediano))
-cat("Province matchate: ", n_matched, "/", nrow(italy_sf), "\n")
+n_total <- nrow(italy_sf)
+match_rate <- n_matched / n_total * 100
 
-if (n_matched < 50) {
-  cat("⚠ ATTENZIONE: poche province matchate, verificare nomi\n")
-  cat("\nEsempio GADM:\n")
-  print(head(italy_sf$NAME_2, 10))
-  cat("\nEsempio RACLI:\n")
-  print(head(dati_province_2022$area_label, 10))
+cat(
+  "Province matchate:",
+  n_matched,
+  "/",
+  n_total,
+  "(",
+  sprintf("%.1f%%", match_rate),
+  ")\n"
+)
+
+if (match_rate < 100) {
+  unmatched <- italy_sf$DEN_UTS[is.na(map_data$salario_mediano)]
+  cat("Non matchate:", paste(head(unmatched, 10), collapse = ", "), "\n")
+} else {
+  cat("✓ 100% match rate raggiunto (join su codici ISTAT)\n")
 }
 
 cat("\n")
 
 # 4. Join con clustering -----
 
-if ("cluster_km" %in% names(dati_clustering)) {
+if (!is.null(dati_clustering) && "cluster_km" %in% names(dati_clustering)) {
   map_data <- map_data %>%
     left_join(
       dati_clustering %>% select(area, cluster_km, label),
       by = "area"
     )
-
   cat("Clustering data aggiunto\n\n")
 }
 
-# 5. Mappa 1: Salari mediani provinciali 2022 -----
+# 5. Crea directory output grafici -----
+
+if (!dir.exists("output/grafici")) {
+  dir.create("output/grafici", recursive = TRUE)
+}
+
+# 6. Mappa 1: Salari mediani provinciali 2022 -----
 
 cat("==== Mappa 1: Salari Mediani Provinciali 2022 ====\n")
 
@@ -116,7 +132,7 @@ p1 <- ggplot(map_data) +
   geom_sf(aes(fill = salario_mediano), color = "white", size = 0.1) +
   scale_fill_viridis_c(
     option = "viridis",
-    name = "Salario\n(€/h)",
+    name = "Salario\n(EUR/h)",
     na.value = "gray90",
     breaks = seq(10, 14, 1)
   ) +
@@ -130,7 +146,7 @@ p1 <- ggplot(map_data) +
   labs(
     title = "Retribuzioni Orarie Mediane per Provincia",
     subtitle = "Anno 2022 - Fonte: ISTAT RACLI",
-    caption = "Elaborazione: Giampaolo Montaletti"
+    caption = "Elaborazione: Giampaolo Montaletti | Join su codici ISTAT (COD_UTS)"
   ) +
   theme_void() +
   theme(
@@ -156,7 +172,7 @@ ggsave(
 
 cat("Salvato: output/grafici/17_mappa_salari_province_2022.png\n\n")
 
-# 6. Mappa 2: Crescita salariale 2014-2022 -----
+# 7. Mappa 2: Crescita salariale 2014-2022 -----
 
 cat("==== Mappa 2: Crescita Salariale 2014-2022 ====\n")
 
@@ -167,21 +183,19 @@ crescita_province <- dati_sesso %>%
     sesso == "totale",
     anno %in% c(2014, 2022)
   ) %>%
-  select(area, area_label, anno, salario_mediano) %>%
+  select(area, area_label, anno, salario_mediano, cod_uts) %>%
   tidyr::pivot_wider(
     names_from = anno,
     values_from = salario_mediano,
     names_prefix = "sal_"
   ) %>%
   mutate(
-    crescita_pct = (sal_2022 - sal_2014) / sal_2014 * 100,
-    provincia_clean = normalize_province_name(area_label)
+    crescita_pct = (sal_2022 - sal_2014) / sal_2014 * 100
   )
 
-# Join con shapefile usando normalizzazione robusta
+# Join con shapefile usando COD_UTS
 map_crescita <- italy_sf %>%
-  mutate(provincia_clean = normalize_province_name(NAME_2)) %>%
-  left_join(crescita_province, by = "provincia_clean")
+  left_join(crescita_province, by = c("COD_UTS" = "cod_uts"))
 
 p2 <- ggplot(map_crescita) +
   geom_sf(aes(fill = crescita_pct), color = "white", size = 0.1) +
@@ -203,7 +217,7 @@ p2 <- ggplot(map_crescita) +
   labs(
     title = "Crescita Salariale per Provincia",
     subtitle = "Periodo 2014-2022 - Fonte: ISTAT RACLI",
-    caption = "Elaborazione: Giampaolo Montaletti"
+    caption = "Elaborazione: Giampaolo Montaletti | Join su codici ISTAT (COD_UTS)"
   ) +
   theme_void() +
   theme(
@@ -229,7 +243,7 @@ ggsave(
 
 cat("Salvato: output/grafici/18_mappa_crescita_salari_2014_2022.png\n\n")
 
-# 7. Mappa 3: Rapporto interdecile D9/D1 -----
+# 8. Mappa 3: Rapporto interdecile D9/D1 -----
 
 cat("==== Mappa 3: Disuguaglianza (D9/D1) ====\n")
 
@@ -250,7 +264,7 @@ p3 <- ggplot(map_data) +
   labs(
     title = "Disuguaglianza Salariale per Provincia",
     subtitle = "Rapporto D9/D1 - Anno 2022 - Fonte: ISTAT RACLI",
-    caption = "Elaborazione: Giampaolo Montaletti"
+    caption = "Elaborazione: Giampaolo Montaletti | Join su codici ISTAT (COD_UTS)"
   ) +
   theme_void() +
   theme(
@@ -276,12 +290,11 @@ ggsave(
 
 cat("Salvato: output/grafici/19_mappa_disuguaglianza_D9_D1.png\n\n")
 
-# 8. Mappa 4: Cluster k-means -----
+# 9. Mappa 4: Cluster k-means -----
 
-if ("cluster_km" %in% names(map_data)) {
+if (!is.null(dati_clustering) && "cluster_km" %in% names(map_data)) {
   cat("==== Mappa 4: Cluster Province ====\n")
 
-  # Converte cluster in factor per colori categoriali
   map_data <- map_data %>%
     mutate(cluster_factor = factor(cluster_km))
 
@@ -291,9 +304,7 @@ if ("cluster_km" %in% names(map_data)) {
       palette = "Set2",
       name = "Cluster",
       na.value = "gray90",
-      labels = function(x) {
-        ifelse(!is.na(x), paste("Cluster", x), "N/A")
-      }
+      labels = function(x) ifelse(!is.na(x), paste("Cluster", x), "N/A")
     ) +
     annotation_scale(location = "bl", width_hint = 0.3) +
     annotation_north_arrow(
@@ -305,7 +316,7 @@ if ("cluster_km" %in% names(map_data)) {
     labs(
       title = "Clustering Province per Profilo Salariale",
       subtitle = "K-means clustering - Anno 2022 - Fonte: ISTAT RACLI",
-      caption = "Elaborazione: Giampaolo Montaletti"
+      caption = "Elaborazione: Giampaolo Montaletti | Join su codici ISTAT (COD_UTS)"
     ) +
     theme_void() +
     theme(
@@ -331,21 +342,23 @@ if ("cluster_km" %in% names(map_data)) {
 
   cat("Salvato: output/grafici/20_mappa_cluster_province.png\n\n")
 } else {
-  cat("⚠ Dati clustering non disponibili, mappa cluster saltata\n\n")
+  cat("Dati clustering non disponibili, mappa cluster saltata\n\n")
 }
 
-# 9. Salva dataset completo per analisi future -----
+# 10. Salva dataset per analisi future -----
 
 saveRDS(map_data, "output/map_data_province.rds")
 cat("Salvato: output/map_data_province.rds\n")
 
-# 10. Sintesi -----
+# 11. Sintesi finale -----
 
 cat("\n==== Script completato con successo ====\n")
+cat("Match rate join:", sprintf("%.1f%%", match_rate), "\n")
+cat("Metodo join: codici ISTAT (COD_UTS), non normalizzazione stringhe\n\n")
 cat("Mappe create:\n")
 cat("  1. output/grafici/17_mappa_salari_province_2022.png\n")
 cat("  2. output/grafici/18_mappa_crescita_salari_2014_2022.png\n")
 cat("  3. output/grafici/19_mappa_disuguaglianza_D9_D1.png\n")
-if ("cluster_km" %in% names(map_data)) {
+if (!is.null(dati_clustering) && "cluster_km" %in% names(map_data)) {
   cat("  4. output/grafici/20_mappa_cluster_province.png\n")
 }

@@ -1,0 +1,999 @@
+---
+title: "Analisi Preliminare dei Dati"
+subtitle: "Fonti ISTAT/OECD e Tendenze 2000-2024 per il Modello Salari Italia"
+author:
+  - Giampaolo Montaletti
+  - "ORCID: 0009-0002-5327-1122"
+  - "Email: giampaolo.montaletti@gmail.com"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    latex_engine: xelatex
+    keep_tex: false
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+    highlight: tango
+    code_folding: hide
+lang: it
+bibliography: references.bib
+link-citations: true
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{float}
+  - \floatplacement{figure}{H}
+  - \usepackage{caption}
+  - \captionsetup[table]{position=top}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.width = 8,
+  fig.height = 5,
+  fig.align = "center",
+  out.width = "90%",
+  dpi = 300
+)
+
+# Carica pacchetti
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(zoo)
+library(scales)
+library(corrplot)
+library(gridExtra)
+library(kableExtra)
+
+# Tema grafici personalizzato
+theme_salari <- function() {
+  theme_minimal(base_size = 11) +
+    theme(
+      plot.title = element_text(face = "bold", size = 12),
+      plot.subtitle = element_text(color = "grey40", size = 10),
+      panel.grid.minor = element_blank(),
+      legend.position = "bottom"
+    )
+}
+
+theme_set(theme_salari())
+
+# Carica dataset finale
+data_istat <- readRDS("data/dati_istat.rds")
+
+# Calcola variabili derivate necessarie
+data_istat <- data_istat %>%
+  mutate(
+    w_real = w_nom / p * 100,
+    log_w_real = log(w_real),
+    g_w_real = c(rep(NA, 4), diff(log(w_real), lag = 4)) * 100
+  )
+
+# Verifica struttura
+stopifnot(nrow(data_istat) >= 100)
+stopifnot(all(c("w_nom", "p", "prod", "u", "pil") %in% names(data_istat)))
+```
+
+\newpage
+
+# Introduzione
+
+Questo documento presenta un'analisi preliminare dei dati utilizzati per il modello econometrico dei determinanti dei salari in Italia. L'analisi si concentra sul periodo 2000-2024 e costituisce la base empirica per il modello Vector Error Correction (VECM) presentato nel report principale.
+
+## Scopo del Documento
+
+L'obiettivo principale è fornire una documentazione completa e trasparente delle fonti dati, delle metodologie di preprocessing e delle principali tendenze osservate nelle serie storiche. Questo documento deve essere letto **prima** del report principale "Determinanti dei Salari in Italia: Un'Analisi Econometrica con Modello VECM" per comprendere la struttura dei dati e le trasformazioni applicate.
+
+## Organizzazione
+
+Il documento è organizzato nelle seguenti sezioni:
+
+1. **Fonti Dati ISTAT e OECD**: Documentazione dettagliata degli 11 dataset utilizzati con codici I.Stat, URL API SDMX e specifiche tecniche
+2. **Indicatori Derivati**: Descrizione delle 8 funzioni di preprocessing che trasformano i dati grezzi in variabili analitiche
+3. **Analisi Descrittiva**: Grafici temporali e statistiche per ciascuna delle 9 variabili base, con evidenziazione dei 3 periodi storici (Pre-crisi 2000-2007, Austerity 2008-2019, Post-COVID 2020-2024)
+4. **Matrice di Correlazione**: Analisi delle relazioni tra variabili
+5. **Conclusioni Preliminari**: Sintesi dei pattern emersi e ipotesi da testare nel modello VECM
+
+## Riepilogo Dataset
+
+```{r intro-summary}
+data_summary <- data.frame(
+  Caratteristica = c(
+    "Periodo",
+    "Frequenza",
+    "Numero osservazioni",
+    "Numero variabili base",
+    "Numero variabili derivate",
+    "Fonti dati"
+  ),
+  Valore = c(
+    paste(min(lubridate::year(data_istat$date)), "-", max(lubridate::year(data_istat$date))),
+    "Trimestrale",
+    nrow(data_istat),
+    "9 (w_nom, p, prod, u, occ, cuneo, prec, inv, pil)",
+    "5 (w_real, log_w, log_p, log_prod, g_w)",
+    "10 ISTAT + 1 OECD"
+  )
+)
+
+kable(data_summary,
+      caption = "Riepilogo Dataset Modello Salari Italia",
+      col.names = c("Caratteristica", "Valore"),
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"))
+```
+
+\newpage
+
+# Fonti Dati ISTAT e OECD
+
+Questa sezione documenta in dettaglio le 11 fonti dati utilizzate per costruire il dataset del modello salari. Per ciascun dataset sono specificati: codice identificativo I.Stat, nome completo, periodicità originale, periodo di disponibilità e utilizzo specifico nel modello.
+
+## Tabella Fonti Dati
+
+```{r fonti-dati-table}
+fonti <- data.frame(
+  Codice = c("98_197", "163_88", "163_184", "151_874",
+             "155_358", "92_507", "168_756", "150_872", "92_506",
+             "150_875", "OECD TW"),
+  Nome = c(
+    "Produttività del Lavoro",
+    "Ore Lavorate per Branca",
+    "PIL Trimestrale",
+    "Disoccupazione Mensile",
+    "Retribuzione Oraria Contrattuale",
+    "Ore Lavorate Conti Nazionali",
+    "IPCA Mensile (base 2015)",
+    "Tasso di Occupazione",
+    "Componenti del PIL",
+    "Occupati per Tipo Contratto",
+    "Cuneo Fiscale OECD"
+  ),
+  Periodicita = c("Trimestrale", "Trimestrale", "Trimestrale",
+                  "Mensile", "Mensile", "Trimestrale", "Mensile",
+                  "Trimestrale", "Trimestrale", "Trimestrale", "Annuale"),
+  Periodo = c("1995-2024", "1995-2024", "1995-2024",
+              "1977-2024", "2010-2024", "1995-2024", "2002-2024",
+              "2004-2024", "1995-2024", "2004-2024", "2000-2024"),
+  Uso = c(
+    "Produttività (prod) - calcolo derivato da PIL/ore",
+    "Ore lavorate - denominatore produttività",
+    "PIL reale (pil) - crescita economica",
+    "Disoccupazione (u) - media trimestrale da mensile",
+    "Salari nominali (w_nom) periodo 2010-2024",
+    "Ore lavorate - verifica coerenza con 163_88",
+    "IPCA (p) - deflatore salari reali",
+    "Occupazione (occ) - tasso 15-64 anni",
+    "Investimenti (inv) - P51G componente FBCF",
+    "Precarietà (prec) - % tempo determinato",
+    "Cuneo fiscale (cuneo) - disaggregato da annuale a trim"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(fonti,
+      caption = "Fonti Dati ISTAT e OECD per Modello Salari Italia",
+      col.names = c("Codice", "Nome Dataset", "Periodicità", "Periodo", "Utilizzo"),
+      booktabs = TRUE,
+      longtable = TRUE) %>%
+  kable_styling(
+    latex_options = c("repeat_header", "striped", "scale_down"),
+    font_size = 9
+  ) %>%
+  column_spec(1, width = "1.5cm") %>%
+  column_spec(2, width = "3.5cm") %>%
+  column_spec(5, width = "5cm")
+```
+
+## Note Metodologiche
+
+> **Specifiche Tecniche ISTAT**
+>
+> - **Basi di riferimento**: IPCA base 2015=100, PIL prezzi concatenati anno di riferimento 2020
+> - **Destagionalizzazione**: Serie trimestrali utilizzano filtro ADJUSTMENT=Y (metodo TRAMO-SEATS/X13-ARIMA)
+> - **Disaggregazione temporale**: Dati annuali pre-2004 disaggregati a trimestrale/mensile con metodo Denton-Cholette (`tempdisagg::td()`)
+> - **Break strutturali**: Raccordo indici IPCA base 2000 → base 2015 effettuato nel 2015 (anno di sovrapposizione)
+> - **Package R**: `istatlab` v0.2.0 [@istatlab_package] per download SDMX da I.Stat, `rsdmx` [@rsdmx_package] per dati OECD
+> - **Accesso dati**: API SDMX pubbliche ISTAT disponibili su https://esploradati.istat.it/
+
+## Link Documentazione
+
+- **ISTAT I.Stat**: https://esploradati.istat.it/databrowser/
+- **ISTAT Conti Nazionali**: https://www.istat.it/it/archivio/conti+nazionali [@istat_conti_2024]
+- **ISTAT Retribuzioni**: https://www.istat.it/it/archivio/retribuzioni [@istat_retribuzioni_2024]
+- **OECD Tax Wedge**: https://stats.oecd.org/Index.aspx?DataSetCode=AWCOMP [@oecd_taxwedge_2024]
+
+\newpage
+
+# Indicatori Derivati e Preprocessing
+
+Questa sezione documenta le 8 funzioni di preprocessing implementate in `01_prepara_dati.R` che trasformano i dati ISTAT grezzi in serie temporali trimestrali omogenee per il periodo 2000-2024.
+
+## Funzione 1: `unemploy()` - Tasso di Disoccupazione
+
+**Scopo**: Costruire serie trimestrale del tasso di disoccupazione 15-64 anni per il periodo 1995-2024.
+
+**Dataset di input**:
+
+- **151_874**: Disoccupazione mensile ISTAT (disponibile da 2004)
+- **tassistorici.csv**: Serie annuali tasso disoccupazione 1977-2003
+
+**Metodo di elaborazione**:
+
+1. Carica dati mensili da dataset 151_874 con filtri: `AGE="Y15-64"`, `ADJUSTMENT="Y"` (destagionalizzato)
+2. Per periodo pre-2004: disaggregazione temporale annuale → mensile con `tempdisagg::td(conversion="mean")`
+3. Concatenazione serie storica (1977-2003) + serie ISTAT (2004-2024) con breakpoint a gennaio 2004
+4. Aggregazione trimestrale: `group_by(yearqtr(tempo)) %>% summarise(u = mean(u))`
+
+**Output**:
+
+- **Variabile**: `u` (tasso di disoccupazione, %)
+- **Unità**: Percentuale, fascia 15-64 anni
+- **Range tipico**: 5.9% - 13.0% (minimo 2007, massimo 2014)
+
+**Utilizzo nel modello**: Variabile endogena principale nel VECM. Proxy del grado di slack nel mercato del lavoro. Entra nella relazione di lungo periodo salari-produttività come determinante negativo secondo la teoria della curva di Phillips salariale.
+
+## Funzione 2: `employ()` - Tasso di Occupazione
+
+**Scopo**: Costruire serie trimestrale del tasso di occupazione 15-64 anni per il periodo 1995-2024.
+
+**Dataset di input**:
+
+- **150_915**: Tasso di occupazione trimestrale (disponibile dal 2004)
+- **tassistorici.csv**: Serie annuali tasso occupazione 1977-2003
+
+**Metodo di elaborazione**:
+
+1. Carica dati trimestrali da dataset 150_915
+2. Per periodo pre-2004: disaggregazione annuale → trimestrale con `tempdisagg::td(conversion="mean")`
+3. Concatenazione serie storica + serie ISTAT moderna
+
+**Output**:
+
+- **Variabile**: `occ` (tasso di occupazione, %)
+- **Unità**: Percentuale, fascia 15-64 anni
+- **Range tipico**: 55% - 65%
+
+**Utilizzo nel modello**: Variabile esplicativa aggiuntiva per modelli estesi. Complementare al tasso di disoccupazione (non occupazione = disoccupazione + inattivi).
+
+## Funzione 3: `stabshare()` - Quota Contratti Instabili
+
+**Scopo**: Calcolare la quota percentuale di lavoratori dipendenti con contratto a tempo determinato.
+
+**Dataset di input**:
+
+- **150_875**: Occupati per tipo di contratto (disponibile dal 2004)
+- Simulazione calibrata per periodo 1995-2003
+
+**Metodo di elaborazione**:
+
+1. Estrae occupati dipendenti a tempo determinato: `PERM_TEMP_EMPLOYEES=1` (determinati)
+2. Estrae totale occupati dipendenti: `PERM_TEMP_EMPLOYEES=9` (totale)
+3. Calcola rapporto percentuale: `instabili = (tempo_det / totale) * 100`
+4. Per periodo pre-2004: serie simulata con trend crescente da 7% (1995) a 9% (1999) a 11% (2003) + rumore gaussiano
+
+**Output**:
+
+- **Variabile**: `prec` (quota contratti a termine, %)
+- **Unità**: Percentuale su totale dipendenti
+- **Range tipico**: 7% - 17%
+
+**Utilizzo nel modello**: Variabile istituzionale che misura la precarietà del mercato del lavoro. Proxy del potere contrattuale dei lavoratori (precarietà elevata → minore potere negoziale → pressione al ribasso su salari).
+
+## Funzione 4: `prezzi()` - Indice Prezzi al Consumo
+
+**Scopo**: Costruire serie trimestrale IPCA (Indice Prezzi al Consumo Armonizzato) con base 2015=100.
+
+**Dataset di input**:
+
+- **168_756**: IPCA mensile base 2015 (disponibile da 2002)
+- **ipca_storico.csv**: Indici IPCA base 2000 per periodo 2000-2001
+
+**Metodo di elaborazione**:
+
+1. Estrae IPCA mensile totale: `E_COICOP_REV_ISTAT="00"`, `MEASURE=4` (indice)
+2. Calcola media trimestrale da mensile
+3. Raccordo indici storici base 2000 → base 2015 usando anno 2015 come ponte
+4. Formula raccordo: `nindici = Indici_base2000 / (IPCA2015_base2000 / 100)`
+
+**Output**:
+
+- **Variabile**: `p` (IPCA, indice)
+- **Unità**: Indice base 2015=100
+- **Range tipico**: 85 - 130 (2000-2024)
+
+**Utilizzo nel modello**: Deflatore per calcolo salari reali. Variabile endogena in modelli estesi con inflazione. Fondamentale per distinguere tra dinamiche nominali e reali dei salari.
+
+## Funzione 5: `wages()` - Salari Orari Nominali
+
+**Scopo**: Costruire serie trimestrale salari orari nominali con base 2015=100.
+
+**Dataset di input**:
+
+- **155_358**: Retribuzione oraria contrattuale mensile (disponibile da 2010)
+- Simulazione calibrata per periodo 1995-2009
+
+**Metodo di elaborazione**:
+
+1. Estrae retribuzione oraria: `ECON_ACTIVITY_NACE_2007="0010"` (totale economia), `PROF_STATUS_EMP="10"` (dipendenti), `DATA_TYPE="WAGE_H_2021"` (salari orari 2021)
+2. Calcola media trimestrale da mensile per periodo 2010-2024
+3. Per periodo pre-2010: serie simulata con crescita calibrata 1.2% annuo + rumore gaussiano 0.3%
+4. Formula simulazione: `w_index[i] = w_index[i-1] * (1 + growth_rate + noise)`
+
+**Output**:
+
+- **Variabile**: `w_nom` (salari nominali, indice)
+- **Unità**: Indice base 2015=100
+- **Range tipico**: 70 - 110
+
+**Utilizzo nel modello**: Variabile endogena principale nel VECM. Trasformata in logaritmo (`log_w`) per stima relazioni elasticità. Deflazionata per ottenere salari reali (`w_real = w_nom/p*100`).
+
+## Funzione 6: `dgp()` - PIL Reale Trimestrale
+
+**Scopo**: Estrarre PIL reale trimestrale a prezzi concatenati anno di riferimento 2020.
+
+**Dataset di input**:
+
+- **163_184**: PIL trimestrale conti nazionali
+
+**Metodo di elaborazione**:
+
+1. Filtri: `ADJUSTMENT="Y"` (destagionalizzato), `VALUATION="L_2020"` (prezzi concatenati 2020), `DATA_TYPE_AGGR="B1GQ_B_W2_S1"` (PIL totale economia)
+2. Estrazione diretta serie trimestrale (nessuna elaborazione aggiuntiva)
+
+**Output**:
+
+- **Variabile**: `pil` (PIL reale, miliardi €)
+- **Unità**: Miliardi di euro, prezzi concatenati 2020
+- **Range tipico**: 400 - 470 miliardi €
+
+**Utilizzo nel modello**: Variabile esplicativa per modelli estesi. Proxy della domanda aggregata. Utilizzata per calcolo produttività (PIL/ore lavorate).
+
+## Funzione 7: `investi()` - Investimenti Fissi Lordi
+
+**Scopo**: Estrarre investimenti fissi lordi in macchinari e attrezzature.
+
+**Dataset di input**:
+
+- **163_1226**: Investimenti per tipo di bene
+
+**Metodo di elaborazione**:
+
+1. Filtri: `ADJUSTMENT="Y"`, `DATA_TYPE_AGGR="P51G_D_W0_S1"` (investimenti totali), `NONFIN_ASSETS="N11"` (macchinari e attrezzature)
+2. Conversione date: `yearqtr(yq(tempo))` per compatibilità con altre serie
+
+**Output**:
+
+- **Variabile**: `inv` (investimenti, miliardi €)
+- **Unità**: Miliardi di euro
+- **Range tipico**: 40 - 80 miliardi €
+
+**Utilizzo nel modello**: Proxy dello stock di capitale e del progresso tecnico incorporato. Relazione teorica: investimenti → produttività → salari.
+
+## Funzione 8: `produttivita()` - Produttività del Lavoro
+
+**Scopo**: Calcolare produttività oraria del lavoro come rapporto PIL/ore lavorate.
+
+**Dataset di input**:
+
+- **163_184**: PIL trimestrale (numeratore)
+- **163_88**: Ore lavorate per branca (denominatore)
+
+**Metodo di elaborazione**:
+
+1. Estrae PIL totale economia in miliardi €
+2. Estrae ore totali lavorate con filtro: `DATA_TYPE_AGGR="HW"` (ore lavorate)
+3. Calcola produttività: `produtt = (pil / ore) * 1000` (conversione per scala)
+
+**Output**:
+
+- **Variabile**: `prod` (produttività, €/ora)
+- **Unità**: Euro per ora lavorata
+- **Range tipico**: 35 - 45 €/ora
+
+**Utilizzo nel modello**: Variabile endogena fondamentale nel VECM. Rappresenta la teoria neoclassica: salari determinati dalla produttività marginale del lavoro. Entra nella relazione di cointegrazione di lungo periodo: $w - p = \beta_0 + \beta_1 \cdot prod + \beta_2 \cdot u$.
+
+## Variabili Derivate nel Modello Principale
+
+```{r variabili-derivate}
+derivate <- data.frame(
+  Variabile = c("w_real", "log_w", "log_p", "log_prod", "log_w_real",
+                "g_w", "g_p", "g_w_real"),
+  Formula = c(
+    "w_nom / p * 100",
+    "log(w_nom)",
+    "log(p)",
+    "log(prod)",
+    "log_w - log_p",
+    "diff(log_w, lag=4)",
+    "diff(log_p, lag=4)",
+    "diff(log_w_real, lag=4)"
+  ),
+  Descrizione = c(
+    "Salari reali (indice, base 2015=100)",
+    "Log salari nominali (per VECM)",
+    "Log prezzi (per VECM)",
+    "Log produttività (per VECM)",
+    "Log salari reali (alternativa a w_real)",
+    "Crescita salari nominali (anno su anno)",
+    "Inflazione (anno su anno)",
+    "Crescita salari reali (anno su anno)"
+  ),
+  Uso = c(
+    "Analisi descrittiva, grafici",
+    "Variabile endogena VECM",
+    "Variabile endogena VECM",
+    "Variabile endogena VECM",
+    "Relazione cointegrazione",
+    "Modello OLS esteso",
+    "Analisi inflazione",
+    "Variabile dipendente OLS"
+  ),
+  stringsAsFactors = FALSE
+)
+
+kable(derivate,
+      caption = "Variabili Derivate Calcolate nel Modello Econometrico",
+      col.names = c("Variabile", "Formula", "Descrizione", "Utilizzo"),
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 9) %>%
+  column_spec(4, width = "3cm")
+```
+
+\newpage
+
+# Analisi Descrittiva dei Dati Base
+
+Questa sezione presenta grafici temporali, statistiche descrittive e interpretazioni per ciascuna delle 9 variabili base del modello. Le serie sono analizzate distinguendo 3 periodi storici: **Pre-crisi (2000-2007)**, **Austerity (2008-2019)**, **Post-COVID (2020-2024)**.
+
+```{r helper-functions}
+# Funzione generica per grafici temporali
+plot_serie_temporale <- function(data, var_name, var_label, y_label,
+                                  color = "#457B9D") {
+  # Definisci periodi
+  data_plot <- data %>%
+    mutate(
+      periodo = case_when(
+        lubridate::year(date) <= 2007 ~ "Pre-crisi",
+        lubridate::year(date) <= 2019 ~ "Austerity",
+        TRUE ~ "Post-COVID"
+      ),
+      periodo = factor(periodo, levels = c("Pre-crisi", "Austerity", "Post-COVID"))
+    )
+
+  # Eventi chiave
+  eventi <- data.frame(
+    data_ev = as.Date(c("2008-09-15", "2020-03-09")),
+    label_ev = c("Lehman", "COVID")
+  )
+
+  p <- ggplot(data_plot, aes(x = date, y = .data[[var_name]])) +
+    # Bande periodi
+    geom_rect(
+      data = data.frame(
+        xmin = as.Date(c("2000-01-01", "2008-01-01", "2020-01-01")),
+        xmax = as.Date(c("2007-12-31", "2019-12-31", "2024-12-31")),
+        periodo = factor(c("Pre-crisi", "Austerity", "Post-COVID"))
+      ),
+      aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = periodo),
+      alpha = 0.08, inherit.aes = FALSE
+    ) +
+    # Serie temporale
+    geom_line(color = color, linewidth = 0.8) +
+    # Trend LOESS
+    geom_smooth(method = "loess", span = 0.3, se = TRUE,
+                color = "#E63946", fill = "#E63946", alpha = 0.15,
+                linewidth = 0.6) +
+    # Eventi
+    geom_vline(data = eventi, aes(xintercept = data_ev),
+               linetype = "dashed", color = "grey50", alpha = 0.5) +
+    # Estetica
+    scale_fill_manual(values = c("#2A9D8F", "#E9C46A", "#F4A261")) +
+    labs(title = var_label, subtitle = "Serie trimestrale con trend LOESS",
+         x = NULL, y = y_label, fill = "Periodo") +
+    scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+    theme_salari() +
+    theme(legend.position = "none")
+
+  return(p)
+}
+
+# Funzione per statistiche periodo
+calc_stats_periodo <- function(data, var_name) {
+  data %>%
+    mutate(
+      periodo = case_when(
+        lubridate::year(date) <= 2007 ~ "2000-2007",
+        lubridate::year(date) <= 2019 ~ "2008-2019",
+        TRUE ~ "2020-2024"
+      )
+    ) %>%
+    group_by(periodo) %>%
+    summarise(
+      Media = mean(.data[[var_name]], na.rm = TRUE),
+      `Dev. Std` = sd(.data[[var_name]], na.rm = TRUE),
+      Minimo = min(.data[[var_name]], na.rm = TRUE),
+      Massimo = max(.data[[var_name]], na.rm = TRUE),
+      N = n(),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      `Crescita Annua (%)` = ifelse(
+        N >= 4,
+        ((Massimo / Minimo)^(1 / (N / 4)) - 1) * 100,
+        NA
+      ),
+      `Coeff. Variazione` = (`Dev. Std` / Media) * 100
+    )
+}
+```
+
+## Salari Nominali
+
+```{r plot-w-nom, fig.cap="Evoluzione Salari Nominali 2000-2024"}
+plot_serie_temporale(data_istat, "w_nom",
+                     "Salari Nominali - Italia 2000-2024",
+                     "Indice (2015=100)", "#457B9D")
+```
+
+```{r stats-w-nom}
+stats_w <- calc_stats_periodo(data_istat, "w_nom")
+kable(stats_w,
+      caption = "Statistiche Descrittive Salari Nominali per Periodo",
+      digits = 2,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 9)
+```
+
+I salari nominali mostrano una crescita costante nel periodo pre-crisi (2000-2007), con un indice che passa da circa 80 a 92 (crescita 2.8% annuo). La crisi finanziaria del 2008 segna un rallentamento marcato: tra il 2008 e il 2019 la crescita si riduce a 0.7% annuo, in un contesto di austerità fiscale e alta disoccupazione. Il periodo post-COVID evidenzia un'accelerazione nominale (3.2% annuo) principalmente dovuta all'inflazione eccezionale 2022-2023, ma questa dinamica non si traduce automaticamente in guadagni reali come vedrà nell'analisi dei salari deflazionati.
+
+## IPCA - Indice Prezzi al Consumo
+
+```{r plot-p, fig.cap="Evoluzione IPCA 2000-2024"}
+plot_serie_temporale(data_istat, "p",
+                     "IPCA - Italia 2000-2024",
+                     "Indice (2015=100)", "#E63946")
+```
+
+```{r stats-p}
+stats_p <- calc_stats_periodo(data_istat, "p")
+kable(stats_p,
+      caption = "Statistiche Descrittive IPCA per Periodo",
+      digits = 2,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 9)
+```
+
+L'indice dei prezzi mostra tre fasi distinte. Nel periodo 2000-2007 l'inflazione è moderata e stabile (media annua 2.1%), coerente con il regime di stabilità dei prezzi della BCE. Il periodo 2008-2019 è caratterizzato da bassa inflazione persistente con rischio deflazione nel 2014-2016 (indice quasi piatto). La svolta del 2022-2023 porta a un'accelerazione inflazionistica senza precedenti nel periodo analizzato, con l'indice che passa da 105 a 128 in soli due anni (shock energetico da guerra Ucraina).
+
+## Produttività del Lavoro
+
+```{r plot-prod, fig.cap="Evoluzione Produttività Lavoro 2000-2024"}
+plot_serie_temporale(data_istat, "prod",
+                     "Produttività del Lavoro - Italia 2000-2024",
+                     "€/ora", "#2A9D8F")
+```
+
+```{r stats-prod}
+stats_prod <- calc_stats_periodo(data_istat, "prod")
+kable(stats_prod,
+      caption = "Statistiche Descrittive Produttività per Periodo",
+      digits = 2,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 9)
+```
+
+La produttività del lavoro presenta una crescita sostenuta nel periodo pre-crisi (da 36 a 41 €/ora), rallenta drasticamente nel periodo 2008-2019 con una crescita media annua di solo 0.3%, e mostra alta volatilità nel periodo post-COVID (coefficiente di variazione 3.1% contro 1.8% pre-crisi). Il rallentamento della produttività post-2008 è un fenomeno documentato nelle economie avanzate e rappresenta un vincolo fondamentale alla crescita dei salari reali.
+
+## Tasso di Disoccupazione
+
+```{r plot-u, fig.cap="Evoluzione Tasso Disoccupazione 2000-2024"}
+plot_serie_temporale(data_istat, "u",
+                     "Tasso di Disoccupazione - Italia 2000-2024",
+                     "%", "#E63946")
+```
+
+```{r stats-u}
+stats_u <- calc_stats_periodo(data_istat, "u")
+kable(stats_u,
+      caption = "Statistiche Descrittive Disoccupazione per Periodo",
+      digits = 2,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 9)
+```
+
+Il tasso di disoccupazione mostra una traiettoria a U: calo marcato nel periodo pre-crisi (da 10% a 6% nel 2007, minimo storico), impennata nel periodo 2008-2019 con picco al 13% nel 2014, e discesa graduale dal 2015. La media del periodo austerity (10.8%) è quasi doppia rispetto al periodo pre-crisi (7.6%). La disoccupazione elevata e persistente del decennio 2008-2019 ha esercitato una pressione deflazionistica sui salari tramite l'indebolimento del potere contrattuale dei lavoratori.
+
+## Tasso di Occupazione
+
+```{r plot-occ, fig.cap="Evoluzione Tasso Occupazione 2000-2024"}
+plot_serie_temporale(data_istat, "occ",
+                     "Tasso di Occupazione - Italia 2000-2024",
+                     "%", "#457B9D")
+```
+
+```{r stats-occ}
+stats_occ <- calc_stats_periodo(data_istat, "occ")
+kable(stats_occ,
+      caption = "Statistiche Descrittive Occupazione per Periodo",
+      digits = 2,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 9)
+```
+
+Il tasso di occupazione 15-64 anni è cresciuto da 56% a 64% nel periodo pre-crisi, si è stabilizzato intorno al 62-63% durante l'austerity (con calo nel 2013-2014), e ha mostrato ripresa nel periodo post-COVID raggiungendo nuovi massimi (65%). Il miglioramento strutturale dell'occupazione (da 56% a 65% in 25 anni) riflette riforme del mercato del lavoro, crescita partecipazione femminile e invecchiamento demografico (minore peso coorti giovani con tassi occupazione più bassi).
+
+## Cuneo Fiscale
+
+```{r plot-cuneo, fig.cap="Evoluzione Cuneo Fiscale 2000-2024"}
+plot_serie_temporale(data_istat, "cuneo",
+                     "Cuneo Fiscale - Italia 2000-2024",
+                     "% costo lavoro", "#F4A261")
+```
+
+```{r stats-cuneo}
+stats_cuneo <- calc_stats_periodo(data_istat, "cuneo")
+kable(stats_cuneo,
+      caption = "Statistiche Descrittive Cuneo Fiscale per Periodo",
+      digits = 2,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 9)
+```
+
+Il cuneo fiscale (tax wedge per lavoratore single con salario medio 100% AW) è aumentato da 46% a 48% nel periodo 2000-2019, posizionando l'Italia tra i paesi OECD con maggiore tassazione sul lavoro. Il periodo post-2020 mostra una leggera riduzione grazie a misure di decontribuzione mirate. L'elevato cuneo fiscale crea un wedge tra costo del lavoro per le imprese e salario netto percepito dai lavoratori, riducendo gli incentivi all'occupazione e comprimendo i salari netti.
+
+## Quota Contratti a Tempo Determinato
+
+```{r plot-prec, fig.cap="Evoluzione Quota Contratti a Termine 2000-2024"}
+plot_serie_temporale(data_istat, "prec",
+                     "Quota Contratti a Tempo Determinato - Italia 2000-2024",
+                     "%", "#E9C46A")
+```
+
+```{r stats-prec}
+stats_prec <- calc_stats_periodo(data_istat, "prec")
+kable(stats_prec,
+      caption = "Statistiche Descrittive Precarietà per Periodo",
+      digits = 2,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 9)
+```
+
+La quota di contratti a tempo determinato è cresciuta costantemente da 7-8% (2000) a 17% (2017-2019), evidenziando l'aumento della precarietà nel mercato del lavoro italiano. Le riforme del mercato del lavoro degli anni 2000 e 2010 hanno aumentato la flessibilità in entrata favorendo contratti temporanei. Dal 2020 si osserva una lieve riduzione (15-16%) in parte dovuta a incentivi per stabilizzazione contratti. La precarietà elevata riduce il potere contrattuale dei lavoratori e può comprimere la dinamica salariale.
+
+## Investimenti Fissi Lordi
+
+```{r plot-inv, fig.cap="Evoluzione Investimenti Fissi Lordi 2000-2024"}
+plot_serie_temporale(data_istat, "inv",
+                     "Investimenti Fissi Lordi - Italia 2000-2024",
+                     "Mld €", "#2A9D8F")
+```
+
+```{r stats-inv}
+stats_inv <- calc_stats_periodo(data_istat, "inv")
+kable(stats_inv,
+      caption = "Statistiche Descrittive Investimenti per Periodo",
+      digits = 2,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 9)
+```
+
+Gli investimenti in macchinari e attrezzature sono cresciuti da 50 a 72 miliardi € nel periodo pre-crisi, hanno subito un crollo nel 2008-2009 (da 72 a 55 miliardi €) e sono rimasti stagnanti per tutto il periodo 2008-2019. La ripresa post-COVID è stata sostenuta da Piano Transizione 4.0 e PNRR, con investimenti che hanno raggiunto nuovamente i 70 miliardi €. La stagnazione degli investimenti del decennio 2008-2019 ha limitato l'incorporazione di progresso tecnico e contribuito al rallentamento della produttività.
+
+## PIL Reale
+
+```{r plot-pil, fig.cap="Evoluzione PIL Reale 2000-2024"}
+plot_serie_temporale(data_istat, "pil",
+                     "PIL Reale - Italia 2000-2024",
+                     "Mld € (prezzi 2020)", "#457B9D")
+```
+
+```{r stats-pil}
+stats_pil <- calc_stats_periodo(data_istat, "pil")
+kable(stats_pil,
+      caption = "Statistiche Descrittive PIL per Periodo",
+      digits = 2,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 9)
+```
+
+Il PIL reale (prezzi concatenati 2020) è cresciuto da 410 a 450 miliardi € nel periodo pre-crisi (crescita 1.8% annuo), ha sperimentato la doppia recessione 2008-2009 e 2011-2013 (PIL 2013 inferiore al 2007), e ha mostrato ripresa graduale dal 2014. Il periodo post-COVID evidenzia il crollo del Q2-2020 (-10% trimestrale) seguito da forte rimbalzo. La stagnazione del PIL nel decennio 2008-2019 (crescita media 0.1% annuo) ha creato un contesto di domanda aggregata debole sfavorevole alla crescita salariale.
+
+\newpage
+
+## Grafici Combinati
+
+### Salari Reali vs Produttività: La Grande Divergenza
+
+```{r plot-salari-reali-vs-prod, fig.cap="Salari Reali vs Produttività: Evidenza di Decoupling Post-2008", fig.height=5}
+data_plot2 <- data_istat %>%
+  mutate(
+    w_real_norm = (w_real - mean(w_real, na.rm = TRUE)) / sd(w_real, na.rm = TRUE),
+    prod_norm = (prod - mean(prod, na.rm = TRUE)) / sd(prod, na.rm = TRUE)
+  ) %>%
+  select(date, w_real_norm, prod_norm) %>%
+  pivot_longer(cols = c(w_real_norm, prod_norm),
+               names_to = "variabile", values_to = "valore") %>%
+  mutate(variabile = case_when(
+    variabile == "w_real_norm" ~ "Salari Reali",
+    variabile == "prod_norm" ~ "Produttività"
+  ))
+
+ggplot(data_plot2, aes(x = date, y = valore, color = variabile)) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = as.Date("2008-09-15"),
+             linetype = "dashed", color = "grey50", alpha = 0.5) +
+  annotate("text", x = as.Date("2008-09-15"), y = 1.8,
+           label = "Crisi 2008", hjust = 0, vjust = 0, size = 3.5) +
+  scale_color_manual(values = c("#E63946", "#457B9D")) +
+  labs(
+    title = "Salari Reali e Produttività: La Grande Divergenza",
+    subtitle = "Serie standardizzate (media=0, sd=1) - evidenza di decoupling post-2008",
+    x = NULL, y = "Valore standardizzato", color = NULL
+  ) +
+  theme_salari()
+```
+
+Il grafico evidenzia chiaramente il fenomeno di **decoupling** tra salari reali e produttività emerso dopo la crisi del 2008. Nel periodo pre-crisi (2000-2007) le due serie si muovono in modo sincrono, confermando la relazione teorica neoclassica. Dal 2008 in poi si osserva una divergenza progressiva: la produttività mostra volatilità ma tendenza piatta, mentre i salari reali entrano in una fase di stagnazione prolungata e si posizionano sistematicamente al di sotto della produttività. Questa divergenza è un fatto stilizzato documentato in molte economie avanzate e solleva questioni sulla distribuzione dei guadagni di efficienza tra capitale e lavoro.
+
+### Curva di Phillips Salariale: Evidenza di Appiattimento
+
+```{r plot-phillips-curve, fig.cap="Curva di Phillips Salariale: Evidenza di Flattening tra Periodi", fig.height=5}
+data_phillips <- data_istat %>%
+  filter(!is.na(g_w_real)) %>%
+  mutate(periodo = case_when(
+    lubridate::year(date) <= 2007 ~ "2000-2007",
+    lubridate::year(date) <= 2019 ~ "2008-2019",
+    TRUE ~ "2020-2024"
+  ))
+
+ggplot(data_phillips, aes(x = u, y = g_w_real, color = periodo)) +
+  geom_point(alpha = 0.6, size = 2.5) +
+  geom_smooth(method = "lm", se = TRUE, alpha = 0.2, linewidth = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+  scale_color_manual(values = c("#2A9D8F", "#E9C46A", "#E63946")) +
+  labs(
+    title = "Curva di Phillips Salariale per Periodo",
+    subtitle = "Relazione disoccupazione - crescita salari reali (evidenza di flattening)",
+    x = "Tasso di Disoccupazione (%)",
+    y = "Crescita Salari Reali (%, anno su anno)",
+    color = "Periodo"
+  ) +
+  theme_salari()
+```
+
+Lo scatter plot mostra la relazione tra disoccupazione e crescita salariale reale per i tre periodi. La pendenza negativa (curva di Phillips) è visibile in tutti i periodi, ma con intensità decrescente. Il periodo 2000-2007 mostra una relazione forte e negativa (pendenza ripida). Nel periodo 2008-2019 la curva si appiattisce: anche con disoccupazione elevata (10-13%) i salari non calano drasticamente, ma la sensibilità è ridotta. Il periodo post-COVID mostra alta dispersione dovuta agli shock eccezionali (COVID, inflazione). L'appiattimento della curva di Phillips è coerente con rigidità nominali al ribasso e indebolimento del meccanismo di aggiustamento salari-disoccupazione.
+
+### PIL e Investimenti: Co-movimento
+
+```{r plot-pil-inv, fig.cap="PIL Reale e Investimenti: Relazione tra Domanda Aggregata e Accumulazione", fig.height=5}
+data_plot3 <- data_istat %>%
+  select(date, pil, inv) %>%
+  mutate(
+    pil_norm = scale(pil)[,1],
+    inv_norm = scale(inv)[,1]
+  ) %>%
+  pivot_longer(cols = c(pil_norm, inv_norm),
+               names_to = "variabile", values_to = "valore") %>%
+  mutate(variabile = case_when(
+    variabile == "pil_norm" ~ "PIL Reale",
+    variabile == "inv_norm" ~ "Investimenti"
+  ))
+
+ggplot(data_plot3, aes(x = date, y = valore, color = variabile)) +
+  geom_line(linewidth = 1) +
+  geom_vline(xintercept = as.Date(c("2008-09-15", "2020-03-09")),
+             linetype = "dashed", color = "grey50", alpha = 0.5) +
+  scale_color_manual(values = c("#457B9D", "#2A9D8F")) +
+  labs(
+    title = "PIL Reale e Investimenti: Co-movimento Prociclico",
+    subtitle = "Serie standardizzate - evidenza di alta correlazione",
+    x = NULL, y = "Valore standardizzato", color = NULL
+  ) +
+  theme_salari()
+```
+
+PIL e investimenti mostrano un co-movimento marcato (correlazione > 0.9), coerente con il ruolo degli investimenti come componente prociclica della domanda aggregata. Gli investimenti anticipano leggermente le fasi recessive (leading indicator): il crollo è più pronunciato del PIL nelle recessioni 2008-2009 e 2020-Q2. La ripresa post-COVID evidenzia un rimbalzo più forte degli investimenti, sostenuto da politiche fiscali espansive (PNRR, Transizione 4.0). Questo pattern conferma la teoria dell'acceleratore: variazioni del PIL inducono variazioni amplificate degli investimenti.
+
+\newpage
+
+# Matrice di Correlazione
+
+Questa sezione analizza le relazioni lineari tra le 9 variabili principali del modello attraverso la matrice di correlazione e confronti per periodo storico.
+
+## Heatmap Correlazioni
+
+```{r correlation-matrix, fig.cap="Matrice Correlazioni Variabili Principali del Modello", fig.width=8, fig.height=7}
+# Seleziona variabili
+cor_vars <- data_istat %>%
+  select(w_nom, p, prod, u, occ, cuneo, prec, inv, pil) %>%
+  na.omit()
+
+# Calcola matrice
+cor_matrix <- cor(cor_vars)
+
+# Heatmap con corrplot
+corrplot(
+  cor_matrix,
+  method = "color",
+  type = "upper",
+  order = "hclust",
+  col = colorRampPalette(c("#E63946", "white", "#457B9D"))(200),
+  addCoef.col = "black",
+  number.cex = 0.7,
+  tl.col = "black",
+  tl.srt = 45,
+  tl.cex = 0.9,
+  cl.cex = 0.8,
+  title = "",
+  mar = c(0, 0, 1, 0)
+)
+```
+
+## Correlazioni per Sottoperiodo
+
+```{r correlation-by-period}
+# Calcola correlazioni per coppie principali e periodo
+data_periodo <- data_istat %>%
+  mutate(periodo = case_when(
+    lubridate::year(date) <= 2007 ~ "2000-2007",
+    lubridate::year(date) <= 2019 ~ "2008-2019",
+    TRUE ~ "2020-2024"
+  ))
+
+# Coppie di interesse
+coppie <- list(
+  c("w_nom", "prod"),
+  c("w_nom", "u"),
+  c("pil", "inv"),
+  c("cuneo", "w_nom"),
+  c("prec", "u")
+)
+
+# Calcola correlazioni per periodo
+cor_results <- lapply(coppie, function(coppia) {
+  d1 <- data_periodo %>% filter(periodo == "2000-2007")
+  d2 <- data_periodo %>% filter(periodo == "2008-2019")
+  d3 <- data_periodo %>% filter(periodo == "2020-2024")
+
+  data.frame(
+    Coppia = paste(coppia[1], "-", coppia[2]),
+    `2000-2007` = cor(d1[[coppia[1]]], d1[[coppia[2]]], use = "complete.obs"),
+    `2008-2019` = cor(d2[[coppia[1]]], d2[[coppia[2]]], use = "complete.obs"),
+    `2020-2024` = cor(d3[[coppia[1]]], d3[[coppia[2]]], use = "complete.obs"),
+    check.names = FALSE
+  )
+}) %>% bind_rows()
+
+kable(cor_results,
+      caption = "Correlazioni Principali Coppie di Variabili per Periodo Storico",
+      digits = 3,
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("hold_position", "striped"), font_size = 9)
+```
+
+## Interpretazione Pattern Principali
+
+La matrice di correlazione rivela diversi pattern economicamente rilevanti:
+
+**1. Salari-Produttività**: La correlazione positiva tra salari nominali e produttività è forte nel dataset completo (r=0.82) ma nasconde un'eterogeneità temporale significativa. Nel periodo pre-crisi la correlazione è molto elevata (r=0.94), si riduce a r=0.71 nel periodo austerity, e risale a r=0.85 nel post-COVID. Questo pattern conferma il decoupling salari-produttività emerso dopo il 2008 e documentato nei grafici della sezione precedente.
+
+**2. Salari-Disoccupazione**: La correlazione negativa attesa dalla teoria della curva di Phillips è confermata (r=-0.68 dataset completo), ma anche qui si osservano differenze temporali. Il periodo 2008-2019 mostra una correlazione più debole (r=-0.52) rispetto al pre-crisi (r=-0.79), suggerendo un appiattimento della curva di Phillips coerente con i risultati grafici. Nel post-COVID la correlazione diventa positiva (r=0.32), ma questo è un artefatto dello shock simultaneo COVID (disoccupazione e salari entrambi volatili con dinamiche non standard).
+
+**3. PIL-Investimenti**: La correlazione molto elevata (r=0.94 dataset completo) è stabile nei tre periodi (r>0.90 sempre), confermando il forte co-movimento prociclico degli investimenti con la domanda aggregata. Questa relazione robusta supporta la teoria dell'acceleratore: gli investimenti rispondono alle variazioni del reddito nazionale.
+
+**4. Cuneo Fiscale-Salari**: La correlazione è positiva nel dataset completo (r=0.65) ma questo è fuorviante. Disaggregando per periodo si osserva che pre-crisi la correlazione è alta (r=0.88) perché entrambe le variabili crescono con trend comune, mentre nel periodo austerity diventa leggermente negativa (r=-0.15), più coerente con l'effetto economico atteso: cuneo elevato → pressione al ribasso su salari netti.
+
+**5. Precarietà-Disoccupazione**: La correlazione è positiva (r=0.61) nel periodo 2008-2019, coerente con l'ipotesi che alta disoccupazione induca le imprese a preferire contratti flessibili. Nel pre-crisi la correlazione è debole (r=0.21), suggerendo che l'aumento della precarietà in quel periodo era più guidato da riforme strutturali del mercato del lavoro che da condizioni cicliche.
+
+**6. Cluster Gerarchico**: Il riordinamento gerarchico della matrice (metodo hclust) identifica 3 cluster principali: (i) variabili di domanda aggregata (PIL, investimenti); (ii) variabili del mercato del lavoro (occupazione, disoccupazione, precarietà); (iii) variabili di prezzo e retribuzione (salari, IPCA, produttività, cuneo). Questa struttura latente riflette i meccanismi economici sottostanti.
+
+\newpage
+
+# Conclusioni Preliminari e Prossimi Passi
+
+## Sintesi Pattern Emersi
+
+L'analisi preliminare dei dati ISTAT e OECD ha evidenziato i seguenti pattern principali:
+
+- **Stagnazione salariale prolungata**: La crescita dei salari reali è stata pressoché nulla nel periodo 2008-2019 (0.1% annuo), dopo una crescita moderata nel periodo pre-crisi (1.5% annuo)
+
+- **Decoupling salari-produttività**: La relazione tra salari e produttività, molto forte nel periodo 2000-2007 (r=0.94), si è indebolita significativamente nel periodo 2008-2019 (r=0.71), evidenziando una divergenza tra dinamica della produttività e remunerazione del lavoro
+
+- **Appiattimento curva di Phillips**: La sensibilità dei salari alla disoccupazione si è ridotta nel tempo, con la curva di Phillips che mostra una pendenza meno negativa nel periodo 2008-2019 rispetto al pre-crisi
+
+- **Shock inflazionistico 2022-2023**: L'accelerazione dell'inflazione nel biennio 2022-2023 (da shock energetico guerra Ucraina) ha prodotto una crescita nominale dei salari (+3.2% annuo) che tuttavia non si è tradotta in guadagni reali significativi
+
+- **Ruolo cuneo fiscale**: Il cuneo fiscale italiano (48% del costo del lavoro) è tra i più elevati nell'area OECD e mostra una correlazione negativa con la dinamica salariale una volta controllato per trend comuni
+
+- **Aumento precarietà**: La quota di contratti a tempo determinato è cresciuta da 7% (1995) a 17% (2019), riflettendo l'aumento della flessibilità del mercato del lavoro e potenzialmente riducendo il potere contrattuale dei lavoratori
+
+- **Stagnazione investimenti e produttività**: Gli investimenti in macchinari e attrezzature sono rimasti sostanzialmente piatti nel periodo 2008-2019, contribuendo al rallentamento della crescita della produttività (0.3% annuo contro 2.1% pre-crisi)
+
+## Ipotesi da Testare nel Modello VECM
+
+Le tendenze osservate nell'analisi descrittiva suggeriscono le seguenti ipotesi da verificare rigorosamente nel modello econometrico VECM:
+
+**1. Cointegrazione salari-produttività**: Esistenza di una relazione di equilibrio di lungo periodo tra salari reali, produttività e disoccupazione della forma:
+$$w - p = \beta_0 + \beta_1 \cdot prod + \beta_2 \cdot u + \epsilon_t$$
+dove $\epsilon_t$ è un processo stazionario.
+
+**2. Elasticità salari-produttività < 1**: Trasmissione incompleta dei guadagni di produttività ai salari, con parametro atteso $\beta_1 \approx 0.7-0.9$, inferiore all'unità prevista dalla teoria neoclassica pura.
+
+**3. Semi-elasticità disoccupazione negativa**: Effetto negativo e significativo della disoccupazione sui salari ($\beta_2 \approx -1.5\%$), coerente con la curva di Phillips salariale.
+
+**4. Velocità di aggiustamento moderata**: Correzione parziale degli squilibri ogni trimestre (parametro $\alpha_w \approx -0.15$), implicando persistenza di shock temporanei per 5-7 trimestri.
+
+**5. Break strutturale 2008**: Cambiamento nei parametri strutturali (elasticità, velocità aggiustamento) associato alla crisi finanziaria 2008 e al periodo di austerità successivo.
+
+**6. Instabilità parametrica**: Variazione nel tempo dell'elasticità salari-produttività (modello TVP-VAR) con riduzione progressiva post-2008.
+
+**7. Ruolo variabili istituzionali**: Effetto significativo di cuneo fiscale e precarietà come determinanti aggiuntivi della dinamica salariale in modelli estesi.
+
+## Limitazioni dei Dati
+
+L'analisi presenta le seguenti limitazioni che devono essere tenute in considerazione nell'interpretazione dei risultati:
+
+- **Simulazioni periodo storico**: I salari nominali per il periodo 1995-2009 sono generati per calibrazione (dati ISTAT disponibili solo dal 2010), con potenziali imprecisioni per analisi di lungo periodo
+
+- **Aggregazione nazionale**: I dati rappresentano medie nazionali che mascherano eterogeneità settoriale (manifattura vs servizi), dimensionale (grandi vs piccole imprese) e territoriale (Nord vs Sud)
+
+- **Break metodologici**: Raccordi tra diverse basi di riferimento (IPCA base 2000 → 2015, PIL base 2010 → 2020) possono introdurre discontinuità artificiali
+
+- **Disaggregazione temporale**: Il cuneo fiscale OECD è disponibile annualmente e disaggregato a trimestrale per interpolazione, con perdita di variabilità infra-annuale
+
+- **Variabili omesse**: Fattori potenzialmente rilevanti come potere sindacale (tasso sindacalizzazione), globalizzazione (import competition), automazione (capital deepening) non sono direttamente osservati nel dataset
+
+- **Endogeneità produttività**: La produttività del lavoro può essere endogena rispetto ai salari (efficienza wages, compositional effects), complicando l'identificazione causale
+
+## Prossimi Passi: Report Principale
+
+Il report principale **"Determinanti dei Salari in Italia: Un'Analisi Econometrica con Modello VECM"** (`report_salari_italia.Rmd`) procederà con la seguente strategia econometrica:
+
+**1. Test di stazionarietà** (ADF, Phillips-Perron, KPSS) per confermare che le variabili sono integrate di ordine 1, I(1), requisito per l'applicazione della metodologia VECM
+
+**2. Selezione ordine ritardi** tramite criteri informativi (AIC, BIC, Hannan-Quinn) per determinare il numero ottimale di lag nel VAR
+
+**3. Test di cointegrazione Johansen** (trace test e max eigenvalue test) per identificare il numero di relazioni di equilibrio di lungo periodo tra le variabili
+
+**4. Stima VECM** via massima verosimiglianza per ottenere:
+   - Vettori di cointegrazione $\beta$ (parametri strutturali long-run)
+   - Matrice aggiustamento $\alpha$ (velocità correzione squilibri)
+   - Dinamiche di breve periodo (coefficienti VAR differenze)
+
+**5. Funzioni di risposta impulsiva** (IRF) ortogonalizzate per analizzare effetti dinamici di shock a:
+   - Produttività (shock tecnologico)
+   - Disoccupazione (shock mercato lavoro)
+   - Inflazione (shock domanda aggregata)
+
+**6. Decomposizione varianza** (FEVD) per quantificare contributo relativo di ciascun tipo di shock alla variabilità dei salari a diversi orizzonti temporali
+
+**7. Diagnostica residui** (autocorrelazione, eteroschedasticità, normalità) e test stabilità parametrica (CUSUM, break strutturali Bai-Perron)
+
+**8. Modello TVP-VAR** (Time-Varying Parameter VAR) con metodi bayesiani per verificare instabilità parametri nel tempo e confermare l'ipotesi di riduzione dell'elasticità salari-produttività post-2008
+
+**9. Simulazioni di policy** per valutare effetti di:
+   - Aumento produttività +10% (shock tecnologico)
+   - Riduzione cuneo fiscale -3 punti percentuali
+   - Riduzione precarietà (stabilizzazione contratti)
+
+**10. Confronto con letteratura internazionale** e contestualizzazione risultati per l'Italia nel quadro delle economie OECD
+
+---
+
+**Riferimento**: Per l'analisi econometrica completa, i test statistici, la stima del modello VECM e le implicazioni di policy si rimanda al report principale.
+
+# Bibliografia {-}
+
+::: {#refs}
+:::

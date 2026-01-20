@@ -87,6 +87,14 @@ w_t - p_t = β₀ + β₁(y/l)_t + β₂u_t + ε_t
 - Graphics: ggplot2 with minimal theme, 300 dpi PNG output
 - Fixed random seed (123) for reproducibility
 
+## Cartografia e Codici Geografici
+
+- **NON usare** mappature manuali o normalizzazione stringhe per join geografici
+- **Usare** libreria `gmontaletti/situas` per shapefile ISTAT ufficiali
+- **Usare** codici ITTER107 (da codelists) mappati a COD_UTS tramite COD_NUTS3_2024 di situas
+- Match rate atteso: 100% (sotto 100% è inaccettabile)
+- Join key: `COD_NUTS3_2024` (situas) ↔ `REF_AREA` (RACLI)
+
 ## Limitations
 
 1. Data is simulated (calibrated to ISTAT values, not direct API)

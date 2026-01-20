@@ -10,7 +10,16 @@
       "mcp__r-btw__btw_tool_search_packages",
       "mcp__r-btw__btw_tool_docs_help_page",
       "mcp__r-btw__btw_tool_search_package_info",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "mcp__r-btw__btw_tool_docs_available_vignettes",
+      "WebSearch",
+      "WebFetch(domain:cran.r-project.org)",
+      "Bash(grep:*)",
+      "Bash(wc:*)",
+      "mcp__r-btw__btw_tool_env_describe_data_frame",
+      "Bash(R --slave -e:*)",
+      "Bash(find:*)"
     ]
   }
 }
