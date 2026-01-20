@@ -653,6 +653,294 @@ saveRDS(gap_gender_settori, "output/gap_gender_settori.rds")
 saveRDS(gap_gender_settori_2022, "output/gap_gender_settori_2022.rds")
 cat("\nSalvato: output/gap_gender_settori*.rds\n\n")
 
+# 13. Interazione Settore × Territorio -----
+cat("==== Interazione Settore × Territorio (2022) ====\n\n")
+
+# Carica dati settore × territorio
+dati_settori_territorio <- readRDS("output/dati_settori_territorio.rds")
+
+cat("Dati caricati:", nrow(dati_settori_territorio), "righe\n")
+cat(
+  "  Aree geografiche:",
+  length(unique(dati_settori_territorio$area)),
+  "\n"
+)
+cat(
+  "  Settori:",
+  length(unique(dati_settori_territorio$settore_code)),
+  "\n\n"
+)
+
+# Filtra dati per analisi: 2022, totale sesso, sezioni NACE principali,
+# solo ripartizioni geografiche (esclude nazionale)
+# Nota: File 6 contiene SOLO salario_mediano
+dati_st_2022 <- dati_settori_territorio %>%
+  filter(
+    anno == 2022,
+    sesso == "totale",
+    geo_level == "Ripartizione",
+    tipo_settore == "Sezione NACE"
+  ) %>%
+  select(
+    area,
+    area_label,
+    ripartizione,
+    settore_code,
+    settore,
+    salario_mediano
+  )
+
+cat("Osservazioni settore × ripartizione (2022):", nrow(dati_st_2022), "\n\n")
+
+# Calcola salari medi Nord e Sud per settore
+# Nord = ITC (Nord-ovest) + ITD (Nord-est)
+# Sud = ITF (Sud) + ITG (Isole)
+gap_territoriale_settori <- dati_st_2022 %>%
+  mutate(
+    macro_area = case_when(
+      area %in% c("ITC", "ITD") ~ "Nord",
+      area %in% c("ITF", "ITG") ~ "Sud",
+      area == "ITE" ~ "Centro",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(macro_area)) %>%
+  group_by(settore_code, settore, macro_area) %>%
+  summarise(
+    salario_mediano = mean(salario_mediano, na.rm = TRUE),
+    n_ripart = n(),
+    .groups = "drop"
+  ) %>%
+  pivot_wider(
+    names_from = macro_area,
+    values_from = c(salario_mediano, n_ripart),
+    names_sep = "_"
+  )
+
+# Calcola gap Nord-Sud
+gap_territoriale_settori <- gap_territoriale_settori %>%
+  mutate(
+    gap_nord_sud_assoluto = salario_mediano_Nord - salario_mediano_Sud,
+    gap_nord_sud_pct = ((salario_mediano_Nord - salario_mediano_Sud) /
+      salario_mediano_Sud) *
+      100,
+    rapporto_nord_sud = salario_mediano_Nord / salario_mediano_Sud
+  ) %>%
+  arrange(desc(gap_nord_sud_pct))
+
+cat("Settori con maggiore divario Nord-Sud (2022):\n")
+print(
+  gap_territoriale_settori %>%
+    select(
+      settore,
+      salario_mediano_Nord,
+      salario_mediano_Sud,
+      gap_nord_sud_pct
+    ) %>%
+    head(10) %>%
+    mutate(
+      gap_pct_fmt = sprintf("%.1f%%", gap_nord_sud_pct),
+      sal_nord_fmt = sprintf("€%.2f", salario_mediano_Nord),
+      sal_sud_fmt = sprintf("€%.2f", salario_mediano_Sud)
+    ) %>%
+    kable(
+      col.names = c(
+        "Settore",
+        "Sal. Nord",
+        "Sal. Sud",
+        "Gap %",
+        "Gap Fmt",
+        "Nord Fmt",
+        "Sud Fmt"
+      ),
+      align = c("l", "r", "r", "r", "r", "r", "r"),
+      digits = 2
+    )
+)
+
+cat("\n\nSettori con minore divario Nord-Sud (settori equalizzatori):\n")
+print(
+  gap_territoriale_settori %>%
+    filter(!is.na(gap_nord_sud_pct)) %>%
+    arrange(gap_nord_sud_pct) %>%
+    select(
+      settore,
+      salario_mediano_Nord,
+      salario_mediano_Sud,
+      gap_nord_sud_pct
+    ) %>%
+    head(10) %>%
+    mutate(
+      gap_pct_fmt = sprintf("%.1f%%", gap_nord_sud_pct),
+      sal_nord_fmt = sprintf("€%.2f", salario_mediano_Nord),
+      sal_sud_fmt = sprintf("€%.2f", salario_mediano_Sud)
+    ) %>%
+    kable(
+      col.names = c(
+        "Settore",
+        "Sal. Nord",
+        "Sal. Sud",
+        "Gap %",
+        "Gap Fmt",
+        "Nord Fmt",
+        "Sud Fmt"
+      ),
+      align = c("l", "r", "r", "r", "r", "r", "r"),
+      digits = 2
+    )
+)
+
+# Calcola CV territoriale per settore
+cv_territoriale_settori <- dati_st_2022 %>%
+  group_by(settore_code, settore) %>%
+  summarise(
+    n_ripartizioni = n(),
+    salario_medio_ripart = mean(salario_mediano, na.rm = TRUE),
+    sd_territoriale = sd(salario_mediano, na.rm = TRUE),
+    cv_territoriale = sd_territoriale / salario_medio_ripart,
+    salario_min = min(salario_mediano, na.rm = TRUE),
+    salario_max = max(salario_mediano, na.rm = TRUE),
+    range_salariale = salario_max - salario_min,
+    .groups = "drop"
+  ) %>%
+  arrange(desc(cv_territoriale))
+
+cat("\n\nSettori POLARIZZATORI (alto CV territoriale):\n")
+print(
+  cv_territoriale_settori %>%
+    select(settore, salario_medio_ripart, cv_territoriale, range_salariale) %>%
+    head(10) %>%
+    mutate(
+      sal_fmt = sprintf("€%.2f", salario_medio_ripart),
+      cv_fmt = sprintf("%.3f", cv_territoriale),
+      range_fmt = sprintf("€%.2f", range_salariale)
+    ) %>%
+    kable(
+      col.names = c(
+        "Settore",
+        "Sal. Medio",
+        "CV Terr.",
+        "Range",
+        "Sal Fmt",
+        "CV Fmt",
+        "Range Fmt"
+      ),
+      align = c("l", "r", "r", "r", "r", "r", "r"),
+      digits = 3
+    )
+)
+
+cat("\n\nSettori EQUALIZZATORI (basso CV territoriale):\n")
+print(
+  cv_territoriale_settori %>%
+    arrange(cv_territoriale) %>%
+    select(settore, salario_medio_ripart, cv_territoriale, range_salariale) %>%
+    head(10) %>%
+    mutate(
+      sal_fmt = sprintf("€%.2f", salario_medio_ripart),
+      cv_fmt = sprintf("%.3f", cv_territoriale),
+      range_fmt = sprintf("€%.2f", range_salariale)
+    ) %>%
+    kable(
+      col.names = c(
+        "Settore",
+        "Sal. Medio",
+        "CV Terr.",
+        "Range",
+        "Sal Fmt",
+        "CV Fmt",
+        "Range Fmt"
+      ),
+      align = c("l", "r", "r", "r", "r", "r", "r"),
+      digits = 3
+    )
+)
+
+# Crea matrice settore × ripartizione per heatmap
+matrice_settore_ripart <- dati_st_2022 %>%
+  select(settore, ripartizione, salario_mediano) %>%
+  pivot_wider(
+    names_from = ripartizione,
+    values_from = salario_mediano
+  )
+
+cat("\n\nMatrice salari settore × ripartizione (2022):\n")
+print(kable(matrice_settore_ripart, digits = 2))
+
+# Salva risultati
+saveRDS(gap_territoriale_settori, "output/gap_territoriale_settori_2022.rds")
+cat("\nSalvato: output/gap_territoriale_settori_2022.rds\n")
+
+saveRDS(cv_territoriale_settori, "output/cv_territoriale_settori_2022.rds")
+cat("Salvato: output/cv_territoriale_settori_2022.rds\n")
+
+saveRDS(matrice_settore_ripart, "output/matrice_settore_ripart_2022.rds")
+cat("Salvato: output/matrice_settore_ripart_2022.rds\n")
+
+saveRDS(dati_st_2022, "output/dati_settori_territorio_2022.rds")
+cat("Salvato: output/dati_settori_territorio_2022.rds\n\n")
+
+# Sintesi interazione settore × territorio
+sintesi_st <- list(
+  n_settori = length(unique(dati_st_2022$settore_code)),
+  n_ripartizioni = length(unique(dati_st_2022$area)),
+  gap_nord_sud_medio = mean(
+    gap_territoriale_settori$gap_nord_sud_pct,
+    na.rm = TRUE
+  ),
+  gap_nord_sud_min = min(
+    gap_territoriale_settori$gap_nord_sud_pct,
+    na.rm = TRUE
+  ),
+  gap_nord_sud_max = max(
+    gap_territoriale_settori$gap_nord_sud_pct,
+    na.rm = TRUE
+  ),
+  cv_territoriale_medio = mean(
+    cv_territoriale_settori$cv_territoriale,
+    na.rm = TRUE
+  ),
+  settore_max_gap = gap_territoriale_settori$settore[1],
+  settore_min_gap = gap_territoriale_settori %>%
+    filter(!is.na(gap_nord_sud_pct)) %>%
+    arrange(gap_nord_sud_pct) %>%
+    slice(1) %>%
+    pull(settore),
+  settore_max_cv = cv_territoriale_settori$settore[1],
+  settore_min_cv = cv_territoriale_settori %>%
+    arrange(cv_territoriale) %>%
+    slice(1) %>%
+    pull(settore)
+)
+
+cat("Sintesi interazione settore × territorio:\n")
+cat("  Settori analizzati:", sintesi_st$n_settori, "\n")
+cat("  Ripartizioni:", sintesi_st$n_ripartizioni, "\n")
+cat(
+  "  Gap Nord-Sud medio:",
+  sprintf("%.1f%%", sintesi_st$gap_nord_sud_medio),
+  "\n"
+)
+cat(
+  "  Gap Nord-Sud range:",
+  sprintf("%.1f%%", sintesi_st$gap_nord_sud_min),
+  "-",
+  sprintf("%.1f%%", sintesi_st$gap_nord_sud_max),
+  "\n"
+)
+cat(
+  "  CV territoriale medio:",
+  sprintf("%.3f", sintesi_st$cv_territoriale_medio),
+  "\n"
+)
+cat("  Settore con maggior gap Nord-Sud:", sintesi_st$settore_max_gap, "\n")
+cat("  Settore equalizzatore (min gap):", sintesi_st$settore_min_gap, "\n")
+cat("  Settore polarizzatore (max CV):", sintesi_st$settore_max_cv, "\n")
+cat("  Settore più omogeneo (min CV):", sintesi_st$settore_min_cv, "\n")
+
+saveRDS(sintesi_st, "output/sintesi_settori_territorio.rds")
+cat("\nSalvato: output/sintesi_settori_territorio.rds\n\n")
+
 cat("==== Script completato con successo ====\n")
 cat("File creati nella directory output/:\n")
 cat("- ranking_settori_2022.rds\n")

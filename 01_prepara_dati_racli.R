@@ -298,6 +298,69 @@ clean_racli_sector_data <- function(data) {
   return(data_wide)
 }
 
+# Pulisce e standardizza dataset RACLI settore × territorio (File 6)
+# Nota: File 6 contiene SOLO salario mediano, non D1/D9/media
+clean_racli_sector_territory_data <- function(data) {
+  if (is.null(data)) {
+    return(NULL)
+  }
+
+  # Carica lookup ripartizioni
+  ripart_lookup <- load_ripartizione_lookup()
+
+  # Rinomina e mappa colonne
+  # File 6 contiene solo salario mediano (NOTE_DATA_TYPE = HOUWAG_ENTEMP_MED_MI_N1)
+  data_clean <- data %>%
+    mutate(
+      anno = tempo_temp,
+      area = as.character(REF_AREA),
+      area_label = as.character(REF_AREA_label),
+      settore_code = as.character(ECON_ACTIVITY_NACE_2007),
+      settore = as.character(ECON_ACTIVITY_NACE_2007_label),
+      sesso = as.character(SEX_label),
+      dim_aziendale = as.character(EMPLOYESS_CLASS_label),
+      contratto_occ = as.character(CONTARCTUAL_OCCUPATION_label),
+      salario_mediano = valore
+    )
+
+  # Aggiungi geo_level e ripartizione
+  data_clean <- data_clean %>%
+    mutate(
+      geo_level = get_geo_level(area),
+      ripartizione = get_ripartizione(area, ripart_lookup)
+    )
+
+  # Seleziona colonne rilevanti
+  data_wide <- data_clean %>%
+    select(
+      anno,
+      area,
+      area_label,
+      geo_level,
+      ripartizione,
+      settore_code,
+      settore,
+      sesso,
+      dim_aziendale,
+      contratto_occ,
+      salario_mediano
+    )
+
+  # Identifica tipo settore (sezione principale vs dettaglio)
+  # File 6 usa codici lettera singola (B, C, D, ...) per sezioni NACE
+  data_wide <- data_wide %>%
+    mutate(
+      tipo_settore = case_when(
+        settore_code %in% c("0010", "0011", "0020", "0038") ~ "Aggregato",
+        nchar(settore_code) == 1 &
+          grepl("^[A-Z]$", settore_code) ~ "Sezione NACE",
+        TRUE ~ "Dettaglio"
+      )
+    )
+
+  return(data_wide)
+}
+
 # 3. Caricamento e preparazione dati -----
 
 cat("Caricamento file RACLI...\n")
@@ -321,6 +384,11 @@ cat(" OK (", nrow(racli_12_raw), "righe)\n")
 cat("  File 17: settori economici...")
 racli_17_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_17.rds")
 cat(" OK (", nrow(racli_17_raw), "righe)\n")
+
+# File 6: Settore × Territorio (per analisi interazione)
+cat("  File 6: settore × territorio...")
+racli_6_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_6.rds")
+cat(" OK (", nrow(racli_6_raw), "righe)\n")
 
 cat("\n")
 
@@ -372,6 +440,11 @@ cat(" OK (", nrow(dati_contratto), "righe)\n")
 cat("  Preparazione dataset settori NACE...")
 dati_settori <- clean_racli_sector_data(racli_17_raw)
 cat(" OK (", nrow(dati_settori), "righe)\n")
+
+# Dataset 5: Settori × Territorio (File 6)
+cat("  Preparazione dataset settore × territorio...")
+dati_settori_territorio <- clean_racli_sector_territory_data(racli_6_raw)
+cat(" OK (", nrow(dati_settori_territorio), "righe)\n")
 
 cat("\n")
 
@@ -464,6 +537,54 @@ if ("salario_mediano" %in% names(dati_settori)) {
 }
 cat("\n")
 
+# Validazione specifica per dati settore × territorio
+cat("Dataset: Settori × Territorio\n")
+cat("  Righe:", nrow(dati_settori_territorio), "\n")
+cat(
+  "  Anni:",
+  paste(sort(unique(dati_settori_territorio$anno)), collapse = ", "),
+  "\n"
+)
+cat(
+  "  Aree geografiche:",
+  length(unique(dati_settori_territorio$area)),
+  "\n"
+)
+cat(
+  "  Ripartizioni:",
+  paste(
+    unique(dati_settori_territorio$ripartizione)[
+      unique(dati_settori_territorio$ripartizione) != "Italia"
+    ],
+    collapse = ", "
+  ),
+  "\n"
+)
+cat(
+  "  Settori totali:",
+  length(unique(dati_settori_territorio$settore_code)),
+  "\n"
+)
+# Conta combinazioni settore × ripartizione (escludendo nazionale)
+n_comb <- dati_settori_territorio %>%
+  filter(geo_level == "Ripartizione", anno == 2022, sesso == "totale") %>%
+  distinct(settore_code, area) %>%
+  nrow()
+cat("  Combinazioni settore × ripartizione (2022):", n_comb, "\n")
+if ("salario_mediano" %in% names(dati_settori_territorio)) {
+  cat(
+    "  Salario mediano range: €",
+    sprintf("%.2f", min(dati_settori_territorio$salario_mediano, na.rm = TRUE)),
+    " - €",
+    sprintf(
+      "%.2f",
+      max(dati_settori_territorio$salario_mediano, na.rm = TRUE)
+    ),
+    "\n"
+  )
+}
+cat("\n")
+
 # 7. Salvataggio -----
 
 cat("==== Salvataggio Dataset ====\n\n")
@@ -483,5 +604,8 @@ cat("Salvato: output/dati_contratto.rds\n")
 
 saveRDS(dati_settori, "output/dati_settori.rds")
 cat("Salvato: output/dati_settori.rds\n")
+
+saveRDS(dati_settori_territorio, "output/dati_settori_territorio.rds")
+cat("Salvato: output/dati_settori_territorio.rds\n")
 
 cat("\n==== Script completato con successo ====\n")

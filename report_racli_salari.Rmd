@@ -313,6 +313,75 @@ gap_gender_settori %>%
 knitr::include_graphics("output/grafici/18_gap_genere_settori.png")
 ```
 
+## Interazione Settore-Territorio
+
+L'analisi del File RACLI 6 consente di studiare l'interazione tra dimensione settoriale e territoriale, rispondendo a domande rilevanti per la politica economica: come variano i salari settoriali tra macro-aree? Quali settori presentano maggiore o minore divario Nord-Sud?
+
+```{r load-sector-territory}
+# Carica dati interazione settore × territorio
+gap_territoriale_settori <- readRDS("output/gap_territoriale_settori_2022.rds")
+cv_territoriale_settori <- readRDS("output/cv_territoriale_settori_2022.rds")
+sintesi_st <- readRDS("output/sintesi_settori_territorio.rds")
+```
+
+### Variabilità Territoriale per Settore
+
+Il gap salariale Nord-Sud varia significativamente tra settori: da un minimo del `r sprintf("%.1f%%", sintesi_st$gap_nord_sud_min)` a un massimo del `r sprintf("%.1f%%", sintesi_st$gap_nord_sud_max)`, con una media del `r sprintf("%.1f%%", sintesi_st$gap_nord_sud_medio)`. Questa eterogeneità indica che il divario territoriale non è uniforme ma dipende dalla struttura produttiva locale.
+
+```{r tab-gap-territoriale-settori}
+gap_territoriale_settori %>%
+  mutate(settore = ifelse(nchar(settore) > 40, paste0(substr(settore, 1, 37), "..."), settore)) %>%
+  filter(!is.na(gap_nord_sud_pct)) %>%
+  select(settore, salario_mediano_Nord, salario_mediano_Sud, gap_nord_sud_pct) %>%
+  head(10) %>%
+  kable(
+    col.names = c("Settore", "Sal. Nord (€/h)", "Sal. Sud (€/h)", "Gap (%)"),
+    digits = c(0, 2, 2, 1),
+    caption = "Settori con maggiore divario Nord-Sud (2022)",
+    booktabs = TRUE
+  ) %>%
+  kable_styling(latex_options = c("hold_position"), font_size = 9) %>%
+  column_spec(1, width = "5.5cm")
+```
+
+```{r fig-heatmap-settori, fig.cap="Salario mediano per settore e ripartizione geografica (2022)", out.width="95%"}
+knitr::include_graphics("output/grafici/19_heatmap_settori_ripartizioni.png")
+```
+
+### Settori "Equalizzatori" vs "Polarizzatori"
+
+Utilizzando il coefficiente di variazione (CV) territoriale come indicatore di omogeneità salariale tra ripartizioni, è possibile identificare:
+
+- **Settori equalizzatori** (basso CV): salari relativamente omogenei tra Nord e Sud, tipicamente settori con contrattazione nazionale forte o regolamentazione pubblica
+- **Settori polarizzatori** (alto CV): forti differenziali territoriali, spesso legati a differenze di produttività locale o a mercati del lavoro segmentati
+
+```{r tab-cv-territoriale}
+cv_territoriale_settori %>%
+  mutate(settore = ifelse(nchar(settore) > 40, paste0(substr(settore, 1, 37), "..."), settore)) %>%
+  select(settore, salario_medio_ripart, cv_territoriale, range_salariale) %>%
+  arrange(desc(cv_territoriale)) %>%
+  head(5) %>%
+  bind_rows(
+    cv_territoriale_settori %>%
+      mutate(settore = ifelse(nchar(settore) > 40, paste0(substr(settore, 1, 37), "..."), settore)) %>%
+      select(settore, salario_medio_ripart, cv_territoriale, range_salariale) %>%
+      arrange(cv_territoriale) %>%
+      head(5)
+  ) %>%
+  kable(
+    col.names = c("Settore", "Sal. Medio (€/h)", "CV Territoriale", "Range (€/h)"),
+    digits = c(0, 2, 3, 2),
+    caption = "Settori polarizzatori (top 5) ed equalizzatori (bottom 5) per CV territoriale",
+    booktabs = TRUE
+  ) %>%
+  kable_styling(latex_options = c("hold_position"), font_size = 9) %>%
+  column_spec(1, width = "5.5cm")
+```
+
+```{r fig-gap-nord-sud, fig.cap="Gap salariale Nord-Sud per settore NACE (2022)", out.width="90%"}
+knitr::include_graphics("output/grafici/20_gap_nord_sud_settori.png")
+```
+
 ## Sintesi Differenziali Settoriali
 
 L'analisi settoriale evidenzia i seguenti fatti stilizzati:
@@ -324,6 +393,8 @@ L'analisi settoriale evidenzia i seguenti fatti stilizzati:
 3. **Gap di genere strutturale**: il differenziale M/F è presente in tutti i settori analizzati, con picchi nei comparti industriali tradizionali e finanziari.
 
 4. **Settori a rischio**: i comparti con bassa retribuzione mediana e alta dispersione richiedono particolare attenzione nelle politiche di sostegno al reddito.
+
+5. **Interazione settore-territorio**: il divario Nord-Sud varia dal `r sprintf("%.0f%%", sintesi_st$gap_nord_sud_min)` al `r sprintf("%.0f%%", sintesi_st$gap_nord_sud_max)` tra settori, con settori "equalizzatori" (contrattazione nazionale) e "polarizzatori" (mercati locali segmentati).
 
 \newpage
 
@@ -427,6 +498,7 @@ Il modello di regressione OLS (R² = `r sprintf("%.4f", sintesi_regressioni$r2_o
 8. **Dispersione salariale stabile**: rapporto D9/D1 nazionale sostanzialmente invariato (~2.6), ma con range 1.6-4.9 tra settori
 9. **Bassa mobilità relativa**: 83% province rimane nello stesso quartile salariale 2014-2022
 10. **Clustering duale**: mercato del lavoro bipartito (alto/basso reddito) con caratteristiche strutturali distinte
+11. **Interazione settore-territorio**: il gap Nord-Sud varia significativamente per settore, con "settori equalizzatori" (basso CV territoriale) e "settori polarizzatori" (alto CV territoriale), indicando che il divario territoriale dipende dalla composizione settoriale locale
 
 ## Limitazioni Analisi
 
@@ -434,7 +506,6 @@ Il modello di regressione OLS (R² = `r sprintf("%.4f", sintesi_regressioni$r2_o
 - **Dati cross-section** (non panel longitudinali individuali) non permettono di separare effetti di composizione da effetti causali
 - **Classificazione NACE a 2 cifre** maschera eterogeneità intra-settoriale (es. qualifiche, mansioni, dimensione aziendale)
 - **Variabili omesse**: produttività individuale, capitale umano specifico, network professionali
-- **Assenza interazione settore-territorio**: i dati settoriali RACLI sono disponibili solo a livello nazionale
 
 ## Coerenza con Modello VECM
 

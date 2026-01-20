@@ -613,9 +613,146 @@ ggsave(
   dpi = 300
 )
 
+# 19. Heatmap settori × ripartizioni -----
+
+cat("19. Heatmap settori × ripartizioni...\n")
+
+# Carica dati settore × territorio
+dati_st_2022 <- readRDS("output/dati_settori_territorio_2022.rds")
+
+# Prepara dati per heatmap
+heatmap_data <- dati_st_2022 %>%
+  mutate(
+    settore_short = ifelse(
+      nchar(settore) > 35,
+      paste0(substr(settore, 1, 32), "..."),
+      settore
+    )
+  )
+
+# Ordina ripartizioni da Nord a Sud
+ripart_order <- c("Nord-ovest", "Nord-est", "Centro", "Sud", "Isole")
+heatmap_data$ripartizione <- factor(
+  heatmap_data$ripartizione,
+  levels = ripart_order
+)
+
+# Ordina settori per salario mediano medio
+settori_ord <- heatmap_data %>%
+  group_by(settore_short) %>%
+  summarise(sal_medio = mean(salario_mediano, na.rm = TRUE)) %>%
+  arrange(desc(sal_medio)) %>%
+  pull(settore_short)
+
+heatmap_data$settore_short <- factor(
+  heatmap_data$settore_short,
+  levels = rev(settori_ord)
+)
+
+p19 <- heatmap_data %>%
+  ggplot(aes(x = ripartizione, y = settore_short, fill = salario_mediano)) +
+  geom_tile(color = "white", linewidth = 0.5) +
+  geom_text(
+    aes(label = sprintf("€%.1f", salario_mediano)),
+    size = 2.5,
+    color = "white"
+  ) +
+  scale_fill_viridis_c(
+    option = "plasma",
+    name = "Salario\nmediano\n(€/h)",
+    labels = label_dollar(prefix = "€", suffix = "")
+  ) +
+  labs(
+    title = "Salario Mediano per Settore e Ripartizione Geografica",
+    subtitle = "Anno 2022 - Sezioni NACE",
+    x = NULL,
+    y = NULL
+  ) +
+  theme_salari() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+    axis.text.y = element_text(size = 8),
+    legend.position = "right"
+  )
+
+ggsave(
+  "output/grafici/19_heatmap_settori_ripartizioni.png",
+  p19,
+  width = 12,
+  height = 12,
+  dpi = 300
+)
+
+# 20. Bar chart gap Nord-Sud per settore -----
+
+cat("20. Gap Nord-Sud per settore...\n")
+
+# Carica dati gap territoriale
+gap_territoriale <- readRDS("output/gap_territoriale_settori_2022.rds")
+
+# Prepara dati per grafico
+gap_plot_data <- gap_territoriale %>%
+  filter(!is.na(gap_nord_sud_pct)) %>%
+  mutate(
+    settore_short = ifelse(
+      nchar(settore) > 40,
+      paste0(substr(settore, 1, 37), "..."),
+      settore
+    ),
+    settore_short = reorder(settore_short, gap_nord_sud_pct),
+    tipo_gap = ifelse(gap_nord_sud_pct > 10, "Alto", "Basso/Medio")
+  )
+
+p20 <- gap_plot_data %>%
+  ggplot(aes(
+    x = settore_short,
+    y = gap_nord_sud_pct,
+    fill = gap_nord_sud_pct
+  )) +
+  geom_col(show.legend = FALSE) +
+  geom_text(
+    aes(
+      label = sprintf("%.1f%%", gap_nord_sud_pct),
+      hjust = ifelse(gap_nord_sud_pct >= 0, -0.1, 1.1)
+    ),
+    size = 3
+  ) +
+  coord_flip() +
+  scale_fill_gradient2(
+    low = "#06A77D",
+    mid = "#F18F01",
+    high = "#C73E1D",
+    midpoint = median(gap_plot_data$gap_nord_sud_pct, na.rm = TRUE)
+  ) +
+  scale_y_continuous(
+    labels = label_percent(scale = 1),
+    expand = expansion(mult = c(0.05, 0.15))
+  ) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  labs(
+    title = "Gap Salariale Nord-Sud per Settore NACE",
+    subtitle = "Anno 2022 - Differenza % (Nord - Sud) / Sud",
+    x = NULL,
+    y = "Gap Nord-Sud (%)",
+    caption = paste(
+      "Nord = Nord-ovest + Nord-est; Sud = Sud + Isole",
+      "\nValori positivi: salari più alti al Nord"
+    )
+  ) +
+  theme_salari() +
+  theme(axis.text.y = element_text(size = 8))
+
+ggsave(
+  "output/grafici/20_gap_nord_sud_settori.png",
+  p20,
+  width = 12,
+  height = 10,
+  dpi = 300
+)
+
 cat("\n==== Generazione grafici completata ====\n")
 cat("Grafici salvati in: output/grafici/\n")
-cat("Totale grafici generati: 18\n\n")
+cat("Totale grafici generati: 20\n\n")
 
 # Elenca grafici creati
 grafici_creati <- list.files(
