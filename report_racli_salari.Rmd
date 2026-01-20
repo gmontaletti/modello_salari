@@ -18,6 +18,8 @@ header-includes:
   - \usepackage{longtable}
   - \usepackage{float}
   - \floatplacement{figure}{H}
+  - \renewcommand{\figurename}{Figura}
+  - \renewcommand{\tablename}{Tabella}
 ---
 
 ```{r setup, include=FALSE}
@@ -195,7 +197,7 @@ La mappa dei salari mediani conferma la persistenza del divario Nord-Sud, con le
 knitr::include_graphics("output/grafici/18_mappa_crescita_salari_2014_2022.png")
 ```
 
-La mappa della crescita salariale mostra una distribuzione più eterogenea, con alcune province meridionali che registrano tassi di crescita superiori alla media nazionale, coerentemente con le evidenze di β-convergenza.
+La mappa della crescita salariale mostra una distribuzione più eterogenea, con alcune province meridionali che registrano tassi di crescita superiori alla media nazionale, coerentemente con le evidenze di $\beta$-convergenza.
 
 ```{r fig-mappa-dispersione, fig.cap="Mappa dispersione salariale D9/D1 (2022)", out.width="90%"}
 knitr::include_graphics("output/grafici/19_mappa_disuguaglianza_D9_D1.png")
@@ -424,18 +426,18 @@ knitr::include_graphics("output/grafici/12_fan_chart_decili.png")
 
 L'analisi di mobilità basata su matrici di transizione tra quartili (2014→2022) rivela un'**elevata persistenza**: l'83% delle province rimane nello stesso quartile di partenza, indicando bassa mobilità relativa.
 
-## Convergenza σ e β
+## Convergenza $\sigma$ e $\beta$
 
 I test di convergenza territoriale mostrano evidenze significative di **catching-up** delle province più povere:
 
-- **σ-convergenza**: `r ifelse(sintesi_distributiva$convergenza_sigma, "CONFERMATA", "NON CONFERMATA")` - riduzione del coefficiente di variazione tra province
-- **β-convergenza**: `r ifelse(sintesi_distributiva$convergenza_beta, "CONFERMATA", "NON CONFERMATA")` - le province con salari iniziali più bassi crescono più velocemente
+- **$\sigma$-convergenza**: `r ifelse(sintesi_distributiva$convergenza_sigma, "CONFERMATA", "NON CONFERMATA")` - riduzione del coefficiente di variazione tra province
+- **$\beta$-convergenza**: `r ifelse(sintesi_distributiva$convergenza_beta, "CONFERMATA", "NON CONFERMATA")` - le province con salari iniziali più bassi crescono più velocemente
 
-```{r fig-sigma, fig.cap="σ-convergenza: coefficiente di variazione salari provinciali", out.width="90%"}
+```{r fig-sigma, fig.cap="$\\sigma$-convergenza: coefficiente di variazione salari provinciali", out.width="90%"}
 knitr::include_graphics("output/grafici/13_sigma_convergenza.png")
 ```
 
-```{r fig-beta, fig.cap="β-convergenza: regressione crescita su livello iniziale", out.width="90%"}
+```{r fig-beta, fig.cap="$\\beta$-convergenza: regressione crescita su livello iniziale", out.width="90%"}
 knitr::include_graphics("output/grafici/14_beta_convergenza.png")
 ```
 
@@ -472,15 +474,79 @@ Il modello di regressione OLS (R² = `r sprintf("%.4f", sintesi_regressioni$r2_o
 - **Effetti geografici**: significativi differenziali tra ripartizioni (baseline: Nord-Ovest)
 - **Effetto dispersione**: maggiore rapporto D9/D1 associato a salari medi più elevati
 
+## Differenziali Settoriali
+
+Il modello OLS con interazioni (R² = 0.977) permette di stimare i premi settoriali controllando per territorio, genere e anno. Utilizzando il settore manifatturiero come baseline, i coefficienti stimati quantificano il differenziale percentuale di ciascun settore.
+
+```{r tab-premi-settoriali-stimati}
+# Carica differenziali stimati dal modello
+diff_settori <- readRDS("output/differenziali_settoriali_stimati.rds")
+
+diff_settori %>%
+  mutate(
+    settore_short = ifelse(nchar(settore) > 45, paste0(substr(settore, 1, 42), "..."), settore),
+    sign = ifelse(significativo, "*", "")
+  ) %>%
+  select(settore_short, premio_pct, ci_lower, ci_upper, sign) %>%
+  kable(
+    col.names = c("Settore NACE", "Premio (%)", "IC inf.", "IC sup.", ""),
+    digits = c(0, 1, 1, 1, 0),
+    caption = "Premi settoriali stimati vs Manifatturiero (OLS con errori robusti)",
+    booktabs = TRUE
+  ) %>%
+  kable_styling(latex_options = c("hold_position"), font_size = 8) %>%
+  column_spec(1, width = "6cm") %>%
+  footnote(general = "* significativo a p < 0.05. IC = intervallo di confidenza 95%.")
+```
+
+I settori ad alta retribuzione (estrazione minerali +51%, finanza +23%, energia +10%) presentano premi significativi rispetto al manifatturiero, mentre i settori dei servizi alla persona mostrano penalizzazioni fino a -42%.
+
+### Variabilità Settoriale del Gap di Genere
+
+Il modello con interazioni settore×genere rivela che il gap di genere non è uniforme tra settori. Nel manifatturiero (baseline) il gap è pari a -32%, ma varia significativamente:
+
+```{r tab-interaz-genere}
+# Carica interazioni settore × genere
+interaz_genere <- readRDS("output/interazioni_settore_genere.rds")
+gap_base <- -32.1  # dal modello
+
+interaz_genere %>%
+  filter(significativo) %>%
+  mutate(
+    settore_short = ifelse(nchar(settore) > 40, paste0(substr(settore, 1, 37), "..."), settore),
+    gap_totale = gap_base + diff_gap_pct
+  ) %>%
+  arrange(desc(gap_totale)) %>%
+  head(10) %>%
+  select(settore_short, gap_totale, diff_gap_pct) %>%
+  kable(
+    col.names = c("Settore", "Gap totale (%)", "Diff. vs Manifatt."),
+    digits = c(0, 1, 1),
+    caption = "Gap di genere per settore (top 10, interazioni significative)",
+    booktabs = TRUE
+  ) %>%
+  kable_styling(latex_options = c("hold_position"), font_size = 8) %>%
+  column_spec(1, width = "6cm")
+```
+
+Le interazioni settore×genere sono significative in 15 settori su 16, confermando che il gap di genere presenta una forte eterogeneità strutturale: nei servizi di supporto e intrattenimento il gap è addirittura invertito (+4%), mentre nel manifatturiero tradizionale raggiunge -32%.
+
+### Interazioni Settore-Territorio
+
+Le 44 interazioni settore×territorio significative (su 64 totali) confermano che il divario Nord-Sud varia fortemente per settore:
+
+- **Settori "equalizzatori"** (energia, sanità): presentano vantaggi relativi nel Sud/Isole (+22-29%), probabilmente per effetto della contrattazione nazionale nel settore pubblico/parapubblico
+- **Settori "polarizzatori"** (estrazione minerali): mostrano svantaggi nelle aree periferiche (-20%), riflettendo la concentrazione geografica dell'attività estrattiva
+
 ## Sintesi Premi Salariali
 
 | Dimensione | Premio | Note |
 |------------|--------|------|
-| Settore (top vs bottom NACE) | +247% | Petrolio/gas €30.15 vs servizi persona €8.70 |
+| Settore (top vs bottom NACE) | +93% | Estrazione +51% vs Sanità -42% (vs manifatturiero) |
 | Educazione (laurea vs base) | +21.3% | Range 6-68%, picco Milano 68% |
 | Contratto (permanente vs determinato) | +17.5% | Media nazionale |
-| Geografia (Nord-Ovest vs Sud) | +13% | Divario persistente |
-| Genere (maschi vs femmine) | +8.0% | In riduzione (-0.26 p.p./anno) |
+| Geografia (Nord-Ovest vs Sud) | +13% | Divario persistente, 44/64 interaz. settore sign. |
+| Genere (maschi vs femmine) | +32.1% | Gap nel manifatturiero, varia da -4% a +32% per settore |
 
 \newpage
 
@@ -491,14 +557,14 @@ Il modello di regressione OLS (R² = `r sprintf("%.4f", sintesi_regressioni$r2_o
 1. **Stagnazione salariale relativa**: crescita complessiva 2014-2022 pari a +6.2% (+0.75% annuo), inferiore all'inflazione cumulata
 2. **Eterogeneità settoriale dominante**: il differenziale tra settori NACE (rapporto ~4:1 tra top e bottom) supera quello territoriale e di genere, rappresentando la principale fonte di variabilità salariale
 3. **Settori ad alta retribuzione e dispersione**: i comparti meglio retribuiti (petrolio/gas, finanza, farmaceutica) presentano anche maggiore dispersione interna (D9/D1 fino a 4.9), suggerendo elevata eterogeneità nelle qualifiche
-4. **Gap di genere settorialmente differenziato**: il differenziale M/F varia da -6% a +59% tra settori, con picchi nel trasporto aereo/marittimo e valori negativi nelle costruzioni
+4. **Gap di genere settorialmente differenziato**: il modello OLS con interazioni conferma che il gap M/F varia significativamente tra settori (15/16 interazioni significative), da -32% nel manifatturiero a +4% nei servizi di supporto
 5. **Gap di genere in riduzione**: da 8.8% (2014) a 8.0% (2022), trend negativo significativo a livello aggregato
 6. **Forte premio educativo**: laureati guadagnano +21% in media, con eterogeneità territoriale elevata
 7. **Divario territoriale persistente**: differenziale Nord-Sud del 13%, con evidenze di convergenza lenta
 8. **Dispersione salariale stabile**: rapporto D9/D1 nazionale sostanzialmente invariato (~2.6), ma con range 1.6-4.9 tra settori
 9. **Bassa mobilità relativa**: 83% province rimane nello stesso quartile salariale 2014-2022
 10. **Clustering duale**: mercato del lavoro bipartito (alto/basso reddito) con caratteristiche strutturali distinte
-11. **Interazione settore-territorio**: il gap Nord-Sud varia significativamente per settore, con "settori equalizzatori" (basso CV territoriale) e "settori polarizzatori" (alto CV territoriale), indicando che il divario territoriale dipende dalla composizione settoriale locale
+11. **Interazione settore-territorio**: il modello OLS conferma che il gap Nord-Sud varia significativamente per settore (44/64 interazioni significative), con "settori equalizzatori" (energia, sanità: +22-29% nel Sud) e "settori polarizzatori" (estrazione: -20% nelle Isole)
 
 ## Limitazioni Analisi
 
@@ -538,8 +604,8 @@ Questi indicatori sono preferiti all'indice di Gini in quanto non richiedono ass
 
 ## Convergenza
 
-- **σ-convergenza**: riduzione dispersione misurata tramite coefficiente di variazione
-- **β-convergenza**: regressione OLS del tasso crescita annuo su log(salario iniziale 2014)
+- **$\sigma$-convergenza**: riduzione dispersione misurata tramite coefficiente di variazione
+- **$\beta$-convergenza**: regressione OLS del tasso crescita annuo su log(salario iniziale 2014)
 
 ## Clustering
 
@@ -548,9 +614,20 @@ Questi indicatori sono preferiti all'indice di Gini in quanto non richiedono ass
 
 ## Modelli Regressione
 
+### Modello OLS provinciale
 - **OLS pooled**: errori standard robusti clustered per provincia
 - **Variabili dipendenti**: log(salario mediano), gap di genere (%)
 - **Controlli**: ripartizione geografica, anno, rapporto interdecile D9/D1
+
+### Modello OLS settoriale con interazioni
+- **Unità di osservazione**: settore × ripartizione × sesso × anno (N = 1,530)
+- **Variabile dipendente**: log(salario mediano orario)
+- **Specifiche**:
+  - Modello base: effetti principali settore + ripartizione + sesso + anno
+  - Modello completo: + interazioni settore×sesso, settore×ripartizione, sesso×ripartizione
+- **Baseline**: Manifatturiero (settore), Nord-ovest (territorio), maschi (genere)
+- **Errori standard**: HC1 robusti all'eteroschedasticità
+- **R²**: 0.914 (base), 0.977 (completo con interazioni)
 
 ---
 

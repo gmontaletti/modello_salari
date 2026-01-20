@@ -324,7 +324,258 @@ if (nrow(dati_contr_provincia) > 10) {
   cat("Dati insufficienti per analisi premio contratto\n\n")
 }
 
-# 7. Sintesi regressioni -----
+# 7. Modello 5: OLS con settori e interazioni -----
+
+cat("==== Modello 5: OLS con Settori e Interazioni ====\n\n")
+
+# Carica dati settore-territorio
+dati_st <- readRDS("output/dati_settori_territorio.rds")
+
+# Filtra: solo sezioni NACE, ripartizioni, maschi/femmine
+dati_ols_settori <- dati_st %>%
+  filter(
+    tipo_settore == "Sezione NACE",
+    ripartizione != "Italia",
+    sesso %in% c("maschi", "femmine"),
+    dim_aziendale == "totale",
+    contratto_occ == "dirigente; impiegato"
+  ) %>%
+  mutate(
+    log_salario = log(salario_mediano),
+    settore_cat = relevel(factor(settore), ref = "attività manifatturiere"),
+    ripartizione_cat = relevel(factor(ripartizione), ref = "Nord-ovest"),
+    sesso_cat = relevel(factor(sesso), ref = "maschi"),
+    anno_norm = anno - 2014
+  ) %>%
+  filter(!is.na(log_salario) & is.finite(log_salario))
+
+cat("Osservazioni per modello settoriale:", nrow(dati_ols_settori), "\n")
+cat("Settori:", length(unique(dati_ols_settori$settore)), "\n")
+cat("Ripartizioni:", length(unique(dati_ols_settori$ripartizione)), "\n")
+cat("Anni:", paste(range(dati_ols_settori$anno), collapse = "-"), "\n\n")
+
+# 7.1 Modello base: solo effetti principali -----
+cat("--- Modello 5a: Solo effetti principali ---\n\n")
+
+model_settori_base <- lm(
+  log_salario ~ settore_cat + ripartizione_cat + sesso_cat + anno_norm,
+  data = dati_ols_settori
+)
+
+coef_base_robust <- coeftest(model_settori_base, vcov = vcovHC, type = "HC1")
+r2_base <- summary(model_settori_base)$r.squared
+
+cat("R-squared modello base:", sprintf("%.4f", r2_base), "\n\n")
+
+# 7.2 Modello completo: interazioni a due vie -----
+cat("--- Modello 5b: Interazioni a due vie ---\n\n")
+
+model_settori <- lm(
+  log_salario ~ settore_cat +
+    ripartizione_cat +
+    sesso_cat +
+    anno_norm +
+    settore_cat:sesso_cat +
+    settore_cat:ripartizione_cat +
+    sesso_cat:ripartizione_cat,
+  data = dati_ols_settori
+)
+
+# Errori standard robusti
+coef_settori_robust <- coeftest(model_settori, vcov = vcovHC, type = "HC1")
+r2_settori <- summary(model_settori)$r.squared
+adj_r2_settori <- summary(model_settori)$adj.r.squared
+
+cat("R-squared modello interazioni:", sprintf("%.4f", r2_settori), "\n")
+cat("R-squared adjusted:", sprintf("%.4f", adj_r2_settori), "\n")
+cat("Miglioramento R2 vs base:", sprintf("%.4f", r2_settori - r2_base), "\n\n")
+
+# 7.3 Estrazione differenziali settoriali -----
+cat("--- Differenziali settoriali stimati (vs Manifatturiero) ---\n\n")
+
+coef_df <- data.frame(
+  variabile = rownames(coef_settori_robust),
+  coef = coef_settori_robust[, 1],
+  se = coef_settori_robust[, 2],
+  t_stat = coef_settori_robust[, 3],
+  p_value = coef_settori_robust[, 4],
+  row.names = NULL
+)
+
+# Coefficienti settoriali (effetti principali)
+differenziali_settori <- coef_df %>%
+  filter(grepl("^settore_cat", variabile) & !grepl(":", variabile)) %>%
+  mutate(
+    settore = gsub("settore_cat", "", variabile),
+    premio_pct = (exp(coef) - 1) * 100,
+    ci_lower = (exp(coef - 1.96 * se) - 1) * 100,
+    ci_upper = (exp(coef + 1.96 * se) - 1) * 100,
+    significativo = p_value < 0.05
+  ) %>%
+  arrange(desc(premio_pct))
+
+cat("Top 5 settori per premio salariale:\n")
+print(
+  differenziali_settori %>%
+    head(5) %>%
+    select(settore, premio_pct, ci_lower, ci_upper, significativo) %>%
+    mutate(
+      premio_fmt = sprintf("%+.1f%%", premio_pct),
+      ci_fmt = sprintf("[%+.1f%%, %+.1f%%]", ci_lower, ci_upper)
+    ) %>%
+    select(settore, premio_fmt, ci_fmt, significativo)
+)
+
+cat("\nBottom 5 settori per premio salariale:\n")
+print(
+  differenziali_settori %>%
+    tail(5) %>%
+    select(settore, premio_pct, ci_lower, ci_upper, significativo) %>%
+    mutate(
+      premio_fmt = sprintf("%+.1f%%", premio_pct),
+      ci_fmt = sprintf("[%+.1f%%, %+.1f%%]", ci_lower, ci_upper)
+    ) %>%
+    select(settore, premio_fmt, ci_fmt, significativo)
+)
+
+# 7.4 Interazioni settore × genere -----
+cat("\n--- Interazioni Settore × Genere ---\n\n")
+
+interaz_genere <- coef_df %>%
+  filter(grepl("settore_cat.*:sesso_cat", variabile)) %>%
+  mutate(
+    settore = gsub("settore_cat(.+):sesso_catfemmine", "\\1", variabile),
+    diff_gap_pct = (exp(coef) - 1) * 100,
+    significativo = p_value < 0.05
+  ) %>%
+  arrange(diff_gap_pct)
+
+# Gap di genere base (manifatturiero)
+gap_base_coef <- coef_df %>%
+  filter(variabile == "sesso_catfemmine") %>%
+  pull(coef)
+gap_base_pct <- (exp(gap_base_coef) - 1) * 100
+
+cat(
+  "Gap di genere nel settore di riferimento (Manifatturiero):",
+  sprintf("%.1f%%", gap_base_pct),
+  "\n\n"
+)
+
+# Settori con gap significativamente diverso
+interaz_sign <- interaz_genere %>% filter(significativo)
+if (nrow(interaz_sign) > 0) {
+  cat("Settori con gap di genere significativamente diverso:\n")
+  print(
+    interaz_sign %>%
+      mutate(
+        gap_totale = gap_base_pct + diff_gap_pct,
+        interpretazione = sprintf(
+          "Gap totale: %.1f%% (%s%.1f%% vs manifatturiero)",
+          gap_totale,
+          ifelse(diff_gap_pct > 0, "+", ""),
+          diff_gap_pct
+        )
+      ) %>%
+      select(settore, interpretazione)
+  )
+} else {
+  cat("Nessuna interazione settore × genere significativa a p < 0.05\n")
+  cat("Il gap di genere è uniforme tra i settori\n")
+}
+
+# 7.5 Interazioni settore × territorio -----
+cat("\n--- Interazioni Settore × Territorio ---\n\n")
+
+interaz_territorio <- coef_df %>%
+  filter(grepl("settore_cat.*:ripartizione_cat", variabile)) %>%
+  mutate(
+    # Estrai settore e ripartizione
+    componenti = gsub(
+      "settore_cat(.+):ripartizione_cat(.+)",
+      "\\1|\\2",
+      variabile
+    ),
+    settore = sapply(strsplit(componenti, "\\|"), `[`, 1),
+    ripartizione = sapply(strsplit(componenti, "\\|"), `[`, 2),
+    diff_terr_pct = (exp(coef) - 1) * 100,
+    significativo = p_value < 0.05
+  ) %>%
+  select(-componenti)
+
+# Quante interazioni significative?
+n_interaz_terr_sign <- sum(interaz_territorio$significativo)
+cat(
+  "Interazioni settore × territorio significative:",
+  n_interaz_terr_sign,
+  "su",
+  nrow(interaz_territorio),
+  "\n\n"
+)
+
+if (n_interaz_terr_sign > 0) {
+  cat("Interazioni significative (top 10 per valore assoluto):\n")
+  print(
+    interaz_territorio %>%
+      filter(significativo) %>%
+      arrange(desc(abs(diff_terr_pct))) %>%
+      head(10) %>%
+      mutate(
+        effetto = sprintf("%+.1f%%", diff_terr_pct),
+        interpretazione = ifelse(
+          diff_terr_pct > 0,
+          "vantaggio relativo",
+          "svantaggio relativo"
+        )
+      ) %>%
+      select(settore, ripartizione, effetto, interpretazione)
+  )
+}
+
+# 7.6 Interazioni genere × territorio -----
+cat("\n--- Interazioni Genere × Territorio ---\n\n")
+
+interaz_gen_terr <- coef_df %>%
+  filter(grepl("sesso_cat.*:ripartizione_cat", variabile)) %>%
+  mutate(
+    ripartizione = gsub("sesso_catfemmine:ripartizione_cat", "", variabile),
+    diff_gap_terr_pct = (exp(coef) - 1) * 100,
+    significativo = p_value < 0.05
+  )
+
+if (nrow(interaz_gen_terr) > 0) {
+  cat("Differenze nel gap di genere per territorio (vs Nord-ovest):\n")
+  print(
+    interaz_gen_terr %>%
+      mutate(
+        gap_totale = gap_base_pct + diff_gap_terr_pct,
+        interpretazione = sprintf(
+          "Gap: %.1f%% (%s%.1f pp vs Nord-ovest)",
+          gap_totale,
+          ifelse(diff_gap_terr_pct > 0, "+", ""),
+          diff_gap_terr_pct
+        )
+      ) %>%
+      select(ripartizione, interpretazione, significativo)
+  )
+}
+
+# 7.7 Salva risultati -----
+cat("\n--- Salvataggio risultati ---\n\n")
+
+saveRDS(model_settori, "output/model_ols_settori.rds")
+saveRDS(coef_df, "output/coef_ols_settori.rds")
+saveRDS(differenziali_settori, "output/differenziali_settoriali_stimati.rds")
+saveRDS(interaz_genere, "output/interazioni_settore_genere.rds")
+saveRDS(interaz_territorio, "output/interazioni_settore_territorio.rds")
+
+cat("Salvato: output/model_ols_settori.rds\n")
+cat("Salvato: output/coef_ols_settori.rds\n")
+cat("Salvato: output/differenziali_settoriali_stimati.rds\n")
+cat("Salvato: output/interazioni_settore_genere.rds\n")
+cat("Salvato: output/interazioni_settore_territorio.rds\n\n")
+
+# 8. Sintesi regressioni -----
 
 cat("==== Sintesi Analisi Regressione ====\n\n")
 
@@ -343,11 +594,19 @@ sintesi_regressioni <- list(
     exists("dati_contr_provincia"),
     mean(dati_contr_provincia$premio_permanente, na.rm = TRUE),
     NA
-  )
+  ),
+  # Modello settoriale
+  n_obs_settori = nrow(dati_ols_settori),
+  r2_settori = r2_settori,
+  adj_r2_settori = adj_r2_settori,
+  n_settori = length(unique(dati_ols_settori$settore)),
+  gap_genere_manifatturiero = gap_base_pct,
+  n_interaz_terr_sign = n_interaz_terr_sign
 )
 
-cat("Osservazioni OLS:", sintesi_regressioni$n_obs_ols, "\n")
-cat("R-squared OLS:", sprintf("%.4f", sintesi_regressioni$r2_ols), "\n")
+cat("--- Modello OLS provinciale ---\n")
+cat("Osservazioni:", sintesi_regressioni$n_obs_ols, "\n")
+cat("R-squared:", sprintf("%.4f", sintesi_regressioni$r2_ols), "\n")
 cat(
   "Crescita salariale annua stimata:",
   sprintf("%.2f%%", sintesi_regressioni$crescita_annua_pct),
@@ -368,6 +627,26 @@ if (!is.na(sintesi_regressioni$premio_permanente_medio)) {
   )
 }
 
+cat("\n--- Modello OLS settoriale con interazioni ---\n")
+cat("Osservazioni:", sintesi_regressioni$n_obs_settori, "\n")
+cat("Settori NACE:", sintesi_regressioni$n_settori, "\n")
+cat("R-squared:", sprintf("%.4f", sintesi_regressioni$r2_settori), "\n")
+cat(
+  "R-squared adjusted:",
+  sprintf("%.4f", sintesi_regressioni$adj_r2_settori),
+  "\n"
+)
+cat(
+  "Gap genere nel Manifatturiero:",
+  sprintf("%.1f%%", sintesi_regressioni$gap_genere_manifatturiero),
+  "\n"
+)
+cat(
+  "Interazioni settore×territorio significative:",
+  sintesi_regressioni$n_interaz_terr_sign,
+  "\n"
+)
+
 saveRDS(sintesi_regressioni, "output/sintesi_regressioni.rds")
 cat("\nSalvato: output/sintesi_regressioni.rds\n\n")
 
@@ -378,4 +657,9 @@ cat("- coef_ols.rds\n")
 cat("- model_gender.rds (se disponibile)\n")
 cat("- premio_educativo_province.rds (se disponibile)\n")
 cat("- premio_contratto_province.rds (se disponibile)\n")
+cat("- model_ols_settori.rds\n")
+cat("- coef_ols_settori.rds\n")
+cat("- differenziali_settoriali_stimati.rds\n")
+cat("- interazioni_settore_genere.rds\n")
+cat("- interazioni_settore_territorio.rds\n")
 cat("- sintesi_regressioni.rds\n")
