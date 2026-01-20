@@ -405,10 +405,11 @@ Il modello di regressione OLS (R² = `r sprintf("%.4f", sintesi_regressioni$r2_o
 
 | Dimensione | Premio | Note |
 |------------|--------|------|
+| Settore (top vs bottom NACE) | +247% | Petrolio/gas €30.15 vs servizi persona €8.70 |
 | Educazione (laurea vs base) | +21.3% | Range 6-68%, picco Milano 68% |
 | Contratto (permanente vs determinato) | +17.5% | Media nazionale |
-| Genere (maschi vs femmine) | +8.0% | In riduzione (-0.26 p.p./anno) |
 | Geografia (Nord-Ovest vs Sud) | +13% | Divario persistente |
+| Genere (maschi vs femmine) | +8.0% | In riduzione (-0.26 p.p./anno) |
 
 \newpage
 
@@ -417,19 +418,23 @@ Il modello di regressione OLS (R² = `r sprintf("%.4f", sintesi_regressioni$r2_o
 ## Fatti Stilizzati Principali
 
 1. **Stagnazione salariale relativa**: crescita complessiva 2014-2022 pari a +6.2% (+0.75% annuo), inferiore all'inflazione cumulata
-2. **Gap di genere in riduzione**: da 8.8% (2014) a 8.0% (2022), trend negativo significativo
-3. **Forte premio educativo**: laureati guadagnano +21% in media, con eterogeneità territoriale elevata
-4. **Divario territoriale persistente**: differenziale Nord-Sud del 13%, con evidenze di convergenza lenta
-5. **Dispersione salariale stabile**: rapporto D9/D1 nazionale sostanzialmente invariato (~2.6), con significativa eterogeneità tra aree
-6. **Bassa mobilità relativa**: 83% province rimane nello stesso quartile salariale 2014-2022
-7. **Clustering duale**: mercato del lavoro bipartito (alto/basso reddito) con caratteristiche strutturali distinte
+2. **Eterogeneità settoriale dominante**: il differenziale tra settori NACE (rapporto ~4:1 tra top e bottom) supera quello territoriale e di genere, rappresentando la principale fonte di variabilità salariale
+3. **Settori ad alta retribuzione e dispersione**: i comparti meglio retribuiti (petrolio/gas, finanza, farmaceutica) presentano anche maggiore dispersione interna (D9/D1 fino a 4.9), suggerendo elevata eterogeneità nelle qualifiche
+4. **Gap di genere settorialmente differenziato**: il differenziale M/F varia da -6% a +59% tra settori, con picchi nel trasporto aereo/marittimo e valori negativi nelle costruzioni
+5. **Gap di genere in riduzione**: da 8.8% (2014) a 8.0% (2022), trend negativo significativo a livello aggregato
+6. **Forte premio educativo**: laureati guadagnano +21% in media, con eterogeneità territoriale elevata
+7. **Divario territoriale persistente**: differenziale Nord-Sud del 13%, con evidenze di convergenza lenta
+8. **Dispersione salariale stabile**: rapporto D9/D1 nazionale sostanzialmente invariato (~2.6), ma con range 1.6-4.9 tra settori
+9. **Bassa mobilità relativa**: 83% province rimane nello stesso quartile salariale 2014-2022
+10. **Clustering duale**: mercato del lavoro bipartito (alto/basso reddito) con caratteristiche strutturali distinte
 
 ## Limitazioni Analisi
 
 - **Periodo breve** (9 anni) limita l'analisi di trend di lungo periodo
 - **Dati cross-section** (non panel longitudinali individuali) non permettono di separare effetti di composizione da effetti causali
-- **Aggregazione settoriale** maschera eterogeneità intra-settore (es. qualifiche, mansioni)
+- **Classificazione NACE a 2 cifre** maschera eterogeneità intra-settoriale (es. qualifiche, mansioni, dimensione aziendale)
 - **Variabili omesse**: produttività individuale, capitale umano specifico, network professionali
+- **Assenza interazione settore-territorio**: i dati settoriali RACLI sono disponibili solo a livello nazionale
 
 ## Coerenza con Modello VECM
 
@@ -438,6 +443,7 @@ I risultati dell'analisi RACLI micro-dati sono coerenti con le evidenze macro de
 - Crescita salariale modesta in linea con stagnazione produttività aggregata
 - Persistenza differenziali territoriali coerente con dualismo strutturale italiano
 - Riduzione gender gap allineata con cambiamenti composizionali forza lavoro
+- Eterogeneità settoriale coerente con differenziali di produttività tra comparti (servizi a bassa produttività vs industria ad alta intensità di capitale)
 
 La validazione statistica conferma una correlazione molto forte (r = 0.944, p < 0.001) tra le serie RACLI aggregate a livello nazionale e i dati del modello VECM per il periodo sovrapposto 2014-2022, attestando la robustezza e coerenza delle due fonti informative.
 
