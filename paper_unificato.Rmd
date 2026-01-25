@@ -322,7 +322,7 @@ Oltre a produttività e disoccupazione, fattori istituzionali influenzano la det
 - **Cuneo fiscale**: Differenza tra costo del lavoro per l'impresa e salario netto per il lavoratore. L'Italia ha uno dei cunei più elevati dell'area OCSE (~48%)
 - **Precarietà contrattuale**: Quota di lavoratori con contratti a tempo determinato. Contratti temporanei riducono il potere negoziale
 - **Contrattazione collettiva**: Grado di copertura e centralizzazione della contrattazione salariale
-- **Salario minimo**: Presenza e livello di salario minimo legale (assente in Italia fino al 2024)
+- **Salario minimo**: Presenza e livello di salario minimo legale (assente in Italia, a differenza della maggior parte dei paesi UE)
 
 ## Framework Causale (DAG)
 
@@ -1072,7 +1072,7 @@ L'appiattimento della Phillips riduce l'efficacia delle politiche occupazionali 
 Le politiche dovrebbero considerare l'eterogeneità settoriale:
 
 1. **Settori ad alta produttività**: Politiche per aumentare la trasmissione ai salari
-2. **Settori a bassa produttività**: Interventi diretti (salario minimo, contrattazione)
+2. **Settori a bassa produttività**: Interventi diretti (rafforzamento contrattazione collettiva, minimi contrattuali settoriali)
 3. **Settori "equalizzatori"**: Mantenere la contrattazione nazionale
 4. **Settori "polarizzatori"**: Politiche territoriali mirate
 
@@ -1148,7 +1148,7 @@ L'elasticità salari-produttività di 0.85 implica che un aumento della produtti
 La precarietà (17% tempo determinato) riduce il potere contrattuale. Interventi possibili:
 
 - **Stabilizzazione contratti**: Incentivi per conversioni a tempo indeterminato
-- **Salario minimo legale**: Introdotto nel 2024, monitoraggio effetti
+- **Minimi contrattuali**: Rafforzamento dei minimi settoriali nei CCNL (in assenza di salario minimo legale nazionale)
 - **Rafforzamento contrattazione**: Copertura ed estensione erga omnes
 
 ## Politica Fiscale
