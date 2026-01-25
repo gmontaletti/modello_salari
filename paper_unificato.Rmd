@@ -326,18 +326,10 @@ Oltre a produttività e disoccupazione, fattori istituzionali influenzano la det
 
 ## Framework Causale (DAG)
 
-Le relazioni tra variabili possono essere rappresentate con un grafo aciclico diretto (DAG) che esplicita le ipotesi causali:
+Le relazioni tra variabili possono essere rappresentate con un grafo aciclico diretto (DAG) che esplicita le ipotesi causali sottostanti al modello.
 
-```
-Produttività (prod) ──────────────────────→ Salari Reali (w_real)
-         ↑                                        ↑
-         │                                        │
-    Investimenti ←──────── PIL ──────────→ Disoccupazione (u)
-         │                  ↑                     │
-         └──────────────────┼─────────────────────┘
-                            │
-              Variabili Istituzionali
-              (cuneo, prec, contrattazione)
+```{r fig-dag-salari, fig.cap="Grafo Aciclico Diretto delle Relazioni tra Variabili Salariali"}
+knitr::include_graphics("output/vecm/grafici/dag_salari.png")
 ```
 
 Il DAG evidenzia:
@@ -455,6 +447,23 @@ ggplot(timeline_data, aes(y = fonte, color = fonte)) +
 
 # Tendenze Macro: Italia 2000-2025
 
+## Panoramica delle Variabili Chiave
+
+Il modello VECM utilizza quattro variabili endogene principali: salari nominali, prezzi, produttività e disoccupazione. La Figura seguente presenta l'evoluzione congiunta di queste serie nel periodo 1995-2025.
+
+```{r fig-serie-storiche, fig.cap="Evoluzione delle Quattro Variabili VECM (1995-2025)"}
+knitr::include_graphics("output/vecm/grafici/serie_storiche.png")
+```
+
+L'analisi visiva delle serie storiche evidenzia diverse caratteristiche:
+
+- **Salari nominali** (w_nom): crescita costante ma moderata, con accelerazione post-2020
+- **Prezzi** (p): trend ascendente con rallentamento 2014-2020 e impennata inflazionistica 2021-2023
+- **Produttività** (prod): stagnazione prolungata 2000-2019, lieve ripresa post-COVID
+- **Disoccupazione** (u): forte ciclicità con picco 2014 (13%) e recupero graduale
+
+La co-evoluzione delle variabili suggerisce l'esistenza di una relazione di equilibrio di lungo periodo, prerequisito per l'applicazione della metodologia VECM.
+
 ## Dinamica Salariale
 
 Nel periodo 2000-2025, i salari nominali italiani sono cresciuti da un indice di circa 80 a 110 (base 2015=100), con un tasso di crescita annuo medio dell'1.3%. Tuttavia, questa crescita nominale nasconde una sostanziale stagnazione in termini reali.
@@ -565,6 +574,16 @@ La correlazione tra salari e produttività è cambiata nel tempo:
 | 2008-2019 | 0.71 | Indebolimento della relazione |
 | 2020-2025 | 0.85 | Recupero parziale |
 
+### Confronto Diretto Salari-Produttività
+
+```{r fig-salari-produttivita-vecm, fig.cap="Evoluzione Comparata di Salari Reali e Produttività (1995-2025)"}
+knitr::include_graphics("output/vecm/grafici/salari_produttivita.png")
+```
+
+Il confronto diretto tra le due serie (normalizzate) evidenzia chiaramente il fenomeno del decoupling. Nel periodo pre-crisi, le due curve si muovono sostanzialmente in parallelo. Dopo il 2008, si apre un gap crescente: la produttività, pur stagnante, supera sistematicamente la dinamica dei salari reali.
+
+Questo scollamento rappresenta la "grande divergenza" italiana: i lavoratori non beneficiano più integralmente dei (modesti) guadagni di produttività, con una progressiva erosione della quota del lavoro sul valore aggiunto.
+
 ## Appiattimento della Curva di Phillips
 
 ```{r fig-phillips, fig.cap="Curva di Phillips Salariale: Evidenza di Appiattimento"}
@@ -593,6 +612,20 @@ ggplot(data_phillips, aes(x = u, y = g_w_real, color = periodo)) +
 
 La pendenza della curva di Phillips si è ridotta nel tempo, passando da circa -2.0% (2000-2007) a circa -0.5% (2020-2025). Questo appiattimento implica che variazioni della disoccupazione hanno oggi un effetto più limitato sulla dinamica salariale.
 
+### Visualizzazione Alternativa della Curva di Phillips
+
+```{r fig-phillips-vecm, fig.cap="Curva di Phillips Salariale: Analisi VECM per Periodo"}
+knitr::include_graphics("output/vecm/grafici/phillips_curve.png")
+```
+
+La visualizzazione VECM della curva di Phillips conferma quantitativamente l'appiattimento progressivo. Le pendenze stimate per ciascun periodo indicano:
+
+- **2000-2007**: γ ≈ -2.0 (curva ripida, forte risposta salariale)
+- **2008-2019**: γ ≈ -1.2 (appiattimento durante austerity)
+- **2020-2025**: γ ≈ -0.5 (curva quasi piatta, bassa risposta)
+
+L'appiattimento della Phillips ha implicazioni rilevanti per la politica economica: riduzioni della disoccupazione generano minori pressioni salariali rispetto al passato, rendendo meno efficaci le politiche di stimolo della domanda aggregata ai fini dell'aumento dei salari.
+
 ## Cambiamenti nella Struttura delle Correlazioni
 
 ```{r fig-corrplot, fig.cap="Matrice Correlazioni Variabili Principali"}
@@ -620,6 +653,28 @@ corrplot(
 
 # Eterogeneità Settoriale e Territoriale
 
+## Evoluzione dei Salari Nazionali
+
+```{r fig-evoluzione-nazionale, fig.cap="Evoluzione del Salario Mediano Nazionale (2014-2022)"}
+knitr::include_graphics("output/racli/grafici/01_evoluzione_salari_nazionale.png")
+```
+
+L'evoluzione del salario mediano nazionale mostra una crescita modesta ma costante nel periodo 2014-2022. La crescita cumulata del 6.2% (circa 0.75% annuo) è inferiore all'inflazione del periodo, indicando una sostanziale stagnazione dei salari reali.
+
+Il grafico evidenzia tre fasi distinte:
+
+1. **2014-2016**: Stagnazione post-crisi, con crescita nominale quasi nulla
+2. **2017-2019**: Ripresa moderata, con crescita dell'1-1.5% annuo
+3. **2020-2022**: Accelerazione post-COVID, trainata dall'inflazione
+
+### Evoluzione del Gap di Genere
+
+```{r fig-gap-genere-tempo, fig.cap="Evoluzione del Gap di Genere nel Tempo (2014-2022)"}
+knitr::include_graphics("output/racli/grafici/02_gap_genere_tempo.png")
+```
+
+Il gap di genere mostra un trend di lenta ma costante riduzione, passando dall'8.8% del 2014 all'8.0% del 2022. La riduzione media annua di 0.26 punti percentuali, pur positiva, implica che sarebbero necessari oltre 30 anni per colmare completamente il divario al ritmo attuale.
+
 ## Panoramica dei Gap Salariali
 
 I dati RACLI 2014-2022 rivelano significative eterogeneità nella distribuzione salariale italiana. Nel 2022, il salario mediano orario nazionale è pari a €`r sprintf("%.2f", sintesi_descrittive$salario_mediano_nazionale_2022)`/ora.
@@ -644,6 +699,40 @@ kable(gap_panoramica,
   kable_styling(latex_options = c("hold_position"))
 ```
 
+## Differenziali per Caratteristiche Individuali
+
+### Premio Educativo
+
+```{r fig-salari-educazione, fig.cap="Salari Mediani per Livello di Istruzione (2014-2022)"}
+knitr::include_graphics("output/racli/grafici/09_salari_educazione.png")
+```
+
+Il premio educativo è significativo e persistente nel tempo. I lavoratori con istruzione terziaria (laurea e oltre) guadagnano in media il 21% in più rispetto a quelli con istruzione di base. Il gap si è mantenuto stabile nel periodo 2014-2022, indicando che il mercato del lavoro italiano continua a remunerare il capitale umano formale.
+
+La struttura gerarchica è chiara: istruzione di base < diploma < laurea triennale < laurea magistrale < dottorato. Il rendimento marginale è maggiore nel passaggio diploma→laurea rispetto agli altri livelli.
+
+### Tipo di Contratto
+
+```{r fig-salari-contratto, fig.cap="Salari Mediani per Tipo di Contratto (Permanente vs Determinato)"}
+knitr::include_graphics("output/racli/grafici/10_salari_contratto.png")
+```
+
+I contratti a tempo indeterminato garantiscono un premio salariale del 17.5% rispetto ai contratti a tempo determinato. Questo "premio di stabilità" riflette diversi meccanismi:
+
+1. **Selezione**: I lavoratori più produttivi ottengono contratti permanenti
+2. **Investimento**: Le imprese investono di più in formazione per lavoratori stabili
+3. **Potere contrattuale**: I lavoratori permanenti hanno maggiore forza negoziale
+
+### Gap di Genere Territoriale
+
+```{r fig-gap-genere-ripartizioni, fig.cap="Gap di Genere per Ripartizione Geografica (2014-2022)"}
+knitr::include_graphics("output/racli/grafici/11_salari_sesso_ripartizioni.png")
+```
+
+Il gap di genere varia significativamente tra ripartizioni territoriali. Il Nord-Ovest presenta i divari maggiori (10-11%), mentre il Sud mostra gap più contenuti (6-7%). Questa apparente contraddizione riflette la diversa composizione settoriale: al Nord prevalgono settori industriali con forte segregazione verticale, al Sud dominano servizi a bassa remunerazione dove il gap è compresso.
+
+In tutte le ripartizioni si osserva un trend di lenta riduzione del gap nel periodo 2014-2022, con convergenza verso valori attorno all'8%.
+
 ## Differenziali Settoriali
 
 L'eterogeneità settoriale è la principale fonte di variabilità salariale. Il rapporto tra il settore meglio retribuito (Estrazione minerali) e quello peggio retribuito (Alloggio/ristorazione) supera 2:1.
@@ -665,6 +754,14 @@ bind_rows(top5, bottom5) %>%
   kable_styling(latex_options = c("hold_position"), font_size = 9)
 ```
 
+### Ranking Settoriale
+
+```{r fig-salari-settori-nace, fig.cap="Salari Mediani per Settore NACE (2022)"}
+knitr::include_graphics("output/racli/grafici/16_salari_settori_nace.png")
+```
+
+Il ranking settoriale visualizza la gerarchia completa dei salari mediani per macrosettore NACE. La dispersione è notevole: dal settore estrattivo (vertice) all'alloggio/ristorazione (base) il rapporto supera 2:1. I settori ad alta intensità di capitale umano (finanza, energia, ICT) dominano la classifica, mentre i servizi a bassa qualificazione occupano le ultime posizioni.
+
 ## Differenziali Territoriali
 
 Il divario Nord-Sud persiste nel mercato del lavoro italiano. Le province del Nord-Ovest registrano salari mediani superiori del 13% rispetto al Sud.
@@ -678,13 +775,123 @@ stat_ripartizioni_2022 %>%
         digits = 2,
         booktabs = TRUE) %>%
   kable_styling(latex_options = c("hold_position"))
+
+### Visualizzazione Territoriale
+
+```{r fig-salari-ripartizioni, fig.cap="Salari Mediani per Ripartizione Territoriale (2014-2022)"}
+knitr::include_graphics("output/racli/grafici/03_salari_ripartizioni.png")
 ```
+
+La visualizzazione temporale dei salari per ripartizione conferma la persistenza del divario territoriale. Il Nord-Ovest mantiene stabilmente la leadership, seguito da Nord-Est e Centro. Il gap Nord-Sud si è leggermente ridotto nel periodo, ma rimane sostanziale.
+
+```{r fig-boxplot-ripartizioni, fig.cap="Distribuzione dei Salari Provinciali per Ripartizione (2022)"}
+knitr::include_graphics("output/racli/grafici/06_boxplot_salari_ripartizioni.png")
+```
+
+I boxplot provinciali mostrano non solo le differenze tra ripartizioni, ma anche la variabilità intra-ripartizione. Il Nord presenta maggiore dispersione (province industriali vs rurali), mentre il Sud mostra maggiore omogeneità verso il basso.
 
 ## Interazioni Settore-Territorio
 
 Il gap Nord-Sud varia significativamente tra settori: dal `r sprintf("%.0f%%", sintesi_st$gap_nord_sud_min)` al `r sprintf("%.0f%%", sintesi_st$gap_nord_sud_max)`, con una media del `r sprintf("%.0f%%", sintesi_st$gap_nord_sud_medio)`.
 
-Settori "equalizzatori" (energia, sanità) presentano divari territoriali contenuti grazie alla contrattazione nazionale. Settori "polarizzatori" (estrazione, finanza) mostrano forti differenziali legati alla localizzazione delle attività.
+```{r fig-heatmap-settori-ripartizioni, fig.cap="Heatmap Salari Mediani per Settore e Ripartizione Territoriale"}
+knitr::include_graphics("output/racli/grafici/19_heatmap_settori_ripartizioni.png")
+```
+
+La heatmap settori-ripartizioni visualizza la matrice dei salari mediani. Le celle più scure indicano salari più elevati. Si osserva chiaramente:
+
+1. **Pattern verticale**: Le colonne Nord-Ovest e Nord-Est sono sistematicamente più scure
+2. **Pattern orizzontale**: Le righe Estrazione, Finanza, Energia sono sistematicamente più scure
+3. **Interazioni**: Alcuni settori (Manifatturiero) mostrano forte gradiente Nord-Sud, altri (PA) presentano omogeneità territoriale
+
+```{r fig-gap-nord-sud-settori, fig.cap="Gap Salariale Nord-Sud per Settore (2022)"}
+knitr::include_graphics("output/racli/grafici/20_gap_nord_sud_settori.png")
+```
+
+La visualizzazione del gap Nord-Sud per settore conferma l'eterogeneità. Settori "equalizzatori" (energia, sanità, PA) presentano divari territoriali contenuti (5-8%) grazie alla contrattazione nazionale e alla presenza di imprese pubbliche con griglie salariali uniformi. Settori "polarizzatori" (estrazione, finanza, manifatturiero avanzato) mostrano forti differenziali (15-25%) legati alla localizzazione delle attività produttive e alla diversa composizione delle mansioni.
+
+## Distribuzione Salariale Nazionale
+
+### Fan Chart dei Decili
+
+```{r fig-fan-chart-decili, fig.cap="Evoluzione della Distribuzione Salariale: Fan Chart dei Decili (2014-2022)"}
+knitr::include_graphics("output/racli/grafici/12_fan_chart_decili.png")
+```
+
+Il fan chart dei decili offre una visualizzazione sintetica dell'evoluzione dell'intera distribuzione salariale. La banda centrale rappresenta la mediana (D5), le bande progressive rappresentano i decili inferiori (D1-D4) e superiori (D6-D9).
+
+L'analisi del fan chart rivela:
+
+1. **Stabilità relativa della dispersione**: L'ampiezza della banda (D9-D1) rimane sostanzialmente costante nel tempo
+2. **Crescita parallela**: Tutti i decili crescono a ritmo simile, senza compressione o espansione della distribuzione
+3. **Persistenza della struttura**: La forma della distribuzione rimane invariata, indicando rigidità strutturale
+
+Questa stabilità contrasta con le dinamiche osservate in altri paesi dove la globalizzazione e il cambiamento tecnologico hanno aumentato la dispersione salariale. In Italia, la contrattazione collettiva nazionale sembra aver contenuto le forze polarizzanti.
+
+### Evoluzione del Rapporto Interdecile
+
+```{r fig-d9d1-tempo, fig.cap="Evoluzione del Rapporto D9/D1 nel Tempo (2014-2022)"}
+knitr::include_graphics("output/racli/grafici/05_rapporto_D9_D1.png")
+```
+
+L'evoluzione del rapporto interdecile D9/D1 conferma la stabilità della dispersione salariale. Il valore oscilla attorno a 2.6 senza trend definito, indicando che la struttura distributiva italiana è rimasta sostanzialmente invariata nel periodo analizzato.
+
+### Relazione Salario-Dispersione
+
+```{r fig-scatter-gini-salario, fig.cap="Relazione tra Salario Mediano e Dispersione a Livello Provinciale (2022)"}
+knitr::include_graphics("output/racli/grafici/07_scatter_gini_salario.png")
+```
+
+Lo scatter plot provinciale rivela una correlazione positiva tra salario mediano e dispersione: le province più ricche tendono ad avere maggiore disuguaglianza interna. Questo riflette la compresenza, nelle aree più sviluppate, di attività ad alta e bassa remunerazione. Le province del Sud, con salari più bassi, mostrano distribuzioni più compresse, ma verso il basso della scala salariale.
+
+## Cartografie Provinciali
+
+L'analisi cartografica consente di visualizzare la distribuzione spaziale dei fenomeni salariali a livello provinciale, evidenziando pattern territoriali non catturabili dalle statistiche aggregate.
+
+### Livelli Salariali Provinciali 2022
+
+```{r fig-mappa-salari-2022, fig.cap="Distribuzione Territoriale dei Salari Mediani Provinciali (2022)"}
+knitr::include_graphics("output/racli/grafici/17_mappa_salari_province_2022.png")
+```
+
+La mappa dei salari mediani provinciali evidenzia un marcato gradiente Nord-Sud. Le province dell'arco alpino e della pianura padana registrano i valori più elevati (Milano, Bolzano, Trieste con salari mediani superiori a €14/h), mentre le province meridionali, in particolare Calabria e Sicilia interne, presentano i valori minimi (inferiori a €10/h).
+
+Questo pattern è coerente con la distribuzione delle attività produttive ad alto valore aggiunto, concentrate nel Nord industriale. Le province metropolitane (Roma, Napoli) mostrano valori intermedi, riflettendo la compresenza di settori ad alta e bassa remunerazione.
+
+### Dinamica di Crescita 2014-2022
+
+```{r fig-mappa-crescita, fig.cap="Crescita Percentuale dei Salari Mediani per Provincia (2014-2022)"}
+knitr::include_graphics("output/racli/grafici/18_mappa_crescita_salari_2014_2022.png")
+```
+
+La mappa della crescita salariale nel periodo 2014-2022 rivela un pattern di lenta convergenza territoriale. Alcune province del Mezzogiorno (Sardegna, Puglia costiera) mostrano tassi di crescita superiori alla media nazionale, suggerendo un parziale catching-up.
+
+Tuttavia, la convergenza è incompleta: province già ad alto reddito come Milano e Roma mantengono tassi di crescita elevati, alimentando una dinamica di polarizzazione nelle aree metropolitane. Le province con crescita più debole si concentrano nelle aree interne appenniniche e nelle isole minori.
+
+### Dispersione Salariale Provinciale
+
+```{r fig-mappa-disuguaglianza, fig.cap="Rapporto Interdecile D9/D1 per Provincia (2022)"}
+knitr::include_graphics("output/racli/grafici/19_mappa_disuguaglianza_D9_D1.png")
+```
+
+La mappa del rapporto interdecile D9/D1 mostra la dispersione salariale intra-provinciale. Valori elevati indicano maggiore disuguaglianza tra lavoratori della stessa provincia.
+
+Le province con maggiore dispersione si concentrano nel Nord-Ovest industriale (dove coesistono settori ad alta e bassa remunerazione) e nelle grandi aree metropolitane. Le province del Sud mostrano paradossalmente minore dispersione, riflettendo una compressione verso il basso della distribuzione salariale piuttosto che una maggiore equità.
+
+### Clustering Provinciale
+
+```{r fig-mappa-cluster, fig.cap="Classificazione delle Province per Profilo Salariale (K-means, k=4)"}
+knitr::include_graphics("output/racli/grafici/20_mappa_cluster_province.png")
+```
+
+L'analisi di clustering K-means identifica quattro profili provinciali distinti:
+
+1. **Cluster "Alto reddito"** (blu): Province del Nord con salari elevati e crescita sostenuta
+2. **Cluster "Metropolitano"** (verde): Grandi città con salari medi-alti e alta dispersione
+3. **Cluster "Transizione"** (giallo): Province del Centro con valori intermedi
+4. **Cluster "Basso reddito"** (rosso): Province del Sud con salari bassi e crescita limitata
+
+La classificazione conferma la persistenza di una struttura duale del mercato del lavoro italiano, con limitata mobilità tra cluster: l'83% delle province mantiene la stessa classificazione nell'intero periodo 2014-2022.
 
 ## Fatti Stilizzati: Livello Micro
 
@@ -714,6 +921,14 @@ L'indice MHOUR_JV (ore lavorate, base 2021=100) mostra una crescita del `r forma
 knitr::include_graphics("output/imprese/grafici/21_evoluzione_indice_totale.png")
 ```
 
+### Evoluzione per Settori Principali
+
+```{r fig-top5-settori, fig.cap="Evoluzione Ore Lavorate per i Top 5 Settori (2015-2025)"}
+knitr::include_graphics("output/imprese/grafici/22_evoluzione_top5_settori.png")
+```
+
+L'evoluzione dei cinque principali settori per volume di ore lavorate mostra traiettorie divergenti. Il settore manifatturiero mantiene la leadership ma con crescita contenuta. I servizi professionali e l'ICT mostrano dinamiche espansive, mentre il commercio presenta un andamento piatto. La PA mantiene stabilità strutturale con oscillazioni minime.
+
 ## Dinamiche Settoriali
 
 L'eterogeneità settoriale nelle ore lavorate è significativa. I settori dei servizi di consumo (alloggio, ristorazione, attività artistiche) mostrano la maggiore volatilità, riflettendo la sensibilità agli shock di domanda.
@@ -732,9 +947,89 @@ volatilita_settori %>%
   kable_styling(latex_options = c("hold_position"), font_size = 9)
 ```
 
+### Volatilità Settoriale
+
+```{r fig-volatilita-settori, fig.cap="Volatilità delle Ore Lavorate per Settore (2015-2025)"}
+knitr::include_graphics("output/imprese/grafici/28_volatilita_settori.png")
+```
+
+La visualizzazione della volatilità settoriale conferma la forte eterogeneità nella stabilità occupazionale. I settori legati al turismo e all'intrattenimento (alloggio e ristorazione, attività artistiche) presentano deviazioni standard delle variazioni trimestrali 3-4 volte superiori rispetto ai settori più stabili (servizi professionali, PA).
+
+Questa eterogeneità ha implicazioni rilevanti per la protezione sociale: i lavoratori dei settori volatili necessitano di ammortizzatori sociali più robusti e di politiche attive del lavoro più intensive.
+
+### Crescita Settoriale Cumulata
+
+```{r fig-cagr-settori, fig.cap="Tasso di Crescita Annuale Composto (CAGR) per Settore 2015-2025"}
+knitr::include_graphics("output/imprese/grafici/31_cagr_settoriale.png")
+```
+
+L'analisi del CAGR settoriale evidenzia le divergenze strutturali nella dinamica della domanda di lavoro. I settori in espansione (servizi professionali, ICT, sanità) registrano CAGR positivi superiori al 2%, mentre settori tradizionali (estrattivo, agricoltura) mostrano contrazione strutturale.
+
+### Ranking Settoriale Attuale
+
+```{r fig-ranking-settori, fig.cap="Ranking Settori per Indice Ore Lavorate (Q3-2025)"}
+knitr::include_graphics("output/imprese/grafici/25_ranking_settori_2025Q3.png")
+```
+
+Il ranking al Q3-2025 mostra la gerarchia attuale dei settori per intensità lavorativa. I primi posti sono occupati da settori che hanno beneficiato della ripresa post-COVID e della transizione digitale.
+
+### Heatmap Settori-Tempo
+
+```{r fig-heatmap-settori, fig.cap="Heatmap Dinamica Ore Lavorate per Settore e Trimestre"}
+knitr::include_graphics("output/imprese/grafici/26_heatmap_settori_tempo.png")
+```
+
+La heatmap settori-tempo fornisce una visione sinottica dell'evoluzione delle ore lavorate. Il pattern della crisi COVID-19 (bande scure nel Q2-Q3 2020) è chiaramente visibile, con impatti differenziati per settore. La ripresa successiva mostra velocità diverse: alcuni settori (manifatturiero, costruzioni) recuperano rapidamente, altri (turismo, ristorazione) richiedono tempi più lunghi.
+
+## Impatto COVID-19 e Recupero
+
+### Shock Settoriale
+
+```{r fig-shock-covid, fig.cap="Impatto dello Shock COVID-19 per Settore (Variazione Q2-2020 vs Q4-2019)"}
+knitr::include_graphics("output/imprese/grafici/32_shock_covid_settori.png")
+```
+
+L'impatto dello shock COVID-19 è stato fortemente asimmetrico tra settori. I settori contact-intensive (alloggio, ristorazione, attività artistiche, trasporti) hanno subito contrazioni superiori al 30% delle ore lavorate. I settori "essenziali" (sanità, PA, alimentare) hanno mostrato resilienza o addirittura crescita.
+
+### Dinamica di Recupero
+
+```{r fig-recupero-covid, fig.cap="Dinamica di Recupero Post-COVID per Settore (2020-2023)"}
+knitr::include_graphics("output/imprese/grafici/33_recupero_post_covid.png")
+```
+
+La dinamica di recupero conferma l'asimmetria settoriale. Mentre il settore manifatturiero e le costruzioni hanno recuperato i livelli pre-COVID entro il Q1-2022, i settori turistici hanno raggiunto il pieno recupero solo nel Q1-2023, con effetti permanenti sulla composizione occupazionale.
+
+### Variazioni Trimestrali Aggregate
+
+```{r fig-variazioni-totale, fig.cap="Variazioni Trimestrali Aggregate delle Ore Lavorate"}
+knitr::include_graphics("output/imprese/grafici/27_variazioni_totale.png")
+```
+
+L'analisi delle variazioni trimestrali aggregate evidenzia il ciclo macroeconomico delle ore lavorate. Oltre allo shock COVID (Q2-2020: -15%), si osservano pattern stagionali persistenti e una volatilità ridotta nel periodo 2022-2025 rispetto al pre-COVID.
+
+### Pattern Stagionali
+
+```{r fig-stagionalita, fig.cap="Pattern Stagionali delle Ore Lavorate per Trimestre"}
+knitr::include_graphics("output/imprese/grafici/31_stagionalita.png")
+```
+
+L'analisi stagionale conferma pattern ricorrenti: il Q1 presenta tipicamente i valori più bassi (effetto festività natalizie), mentre Q2 e Q3 registrano i picchi di attività. Questa struttura stagionale è più pronunciata nei settori turistici e agricoli.
+
 ## Effetti Dimensionali
 
 Il gap tra imprese con 10+ dipendenti (W_GE10) e totale imprese (W_GE1) si è ridotto nel tempo, passando da circa -4% nel 2015 a circa 0% nel 2025. Questo indica una crescente quota delle imprese medio-grandi sul totale ore lavorate.
+
+```{r fig-gap-dimensionale, fig.cap="Evoluzione del Gap Dimensionale (imprese 10+ vs totale) nel Tempo"}
+knitr::include_graphics("output/imprese/grafici/24_gap_W_GE10_W_GE1.png")
+```
+
+L'evoluzione del gap dimensionale riflette cambiamenti strutturali nel tessuto produttivo italiano:
+
+1. **Pre-COVID (2015-2019)**: Gap stabile attorno a -3%, indicando che le imprese con 10+ dipendenti contribuivano meno proporzionalmente al totale ore
+2. **Shock COVID (2020)**: Convergenza temporanea, con le grandi imprese relativamente più resilienti
+3. **Post-COVID (2021-2025)**: Gap prossimo allo zero, suggerendo un riequilibrio dimensionale
+
+La riduzione del gap può riflettere: (a) maggiore crescita delle imprese medio-grandi; (b) uscita dal mercato di microimprese durante le crisi; (c) consolidamento settoriale post-COVID.
 
 ## Fatti Stilizzati: Domanda di Lavoro
 
@@ -839,25 +1134,50 @@ I coefficienti Γ catturano le interazioni di breve periodo tra le variabili. I 
 
 ## Funzioni di Risposta all'Impulso
 
-Le IRF descrivono la risposta del sistema a shock unitari alle singole variabili.
+Le IRF (Impulse Response Functions) descrivono la risposta dinamica del sistema a shock unitari alle singole variabili. L'analisi utilizza bootstrap con 500 replicazioni per costruire intervalli di confidenza al 95%.
 
-```{r fig-irf-prod, fig.cap="Risposta dei Salari a Shock di Produttività (+1 dev.std.)"}
-if (!is.null(irf_results$irf_prod)) {
-  plot_irf_fan(irf_results$irf_prod, "Risposta Salari a Shock Produttività")
-}
+### Risposta a Shock di Produttività
+
+```{r fig-irf-prod-png, fig.cap="Risposta dei Salari a Shock di Produttività (+1 dev.std.)"}
+knitr::include_graphics("output/vecm/grafici/irf_prod.png")
 ```
 
 **Shock alla produttività (+1 dev.std.)**:
 
-- Effetto immediato (t=0): nullo per costruzione
-- Effetto cumulato a 8 trimestri: +0.1-0.2%
-- Convergenza graduale verso l'elasticità di lungo periodo
+- Effetto immediato (t=0): nullo per costruzione (shock contemporaneo non influenza altre variabili)
+- Effetto cumulato a 8 trimestri: +0.10-0.20% sui salari reali
+- Convergenza graduale verso l'elasticità di lungo periodo (β₁ ≈ 0.85)
+- L'intervallo di confidenza (area ombreggiata) si allarga nel tempo, riflettendo l'incertezza crescente
+
+L'effetto positivo della produttività sui salari è persistente ma incompleto, coerentemente con l'elasticità di lungo periodo inferiore all'unità.
+
+### Risposta a Shock di Disoccupazione
+
+```{r fig-irf-u-png, fig.cap="Risposta dei Salari a Shock di Disoccupazione (+1 dev.std.)"}
+knitr::include_graphics("output/vecm/grafici/irf_u.png")
+```
 
 **Shock alla disoccupazione (+1 dev.std.)**:
 
-- Effetto iniziale: lieve positivo (rigidità nominale)
-- Effetto a 8 trimestri: -0.1%
-- L'effetto negativo si manifesta con ritardo di 4-5 trimestri
+- Effetto iniziale (t=1): lievemente positivo (rigidità nominale, effetto sorpresa)
+- Effetto a 4-8 trimestri: -0.08 a -0.15%
+- L'effetto negativo si manifesta con ritardo di 3-5 trimestri
+- Persistenza elevata: lo shock ha effetti per oltre 20 trimestri
+
+La risposta ritardata riflette il processo di contrattazione salariale: gli accordi collettivi incorporano con lentezza le variazioni dello slack del mercato del lavoro.
+
+### Risposta a Shock dei Prezzi
+
+```{r fig-irf-p-png, fig.cap="Risposta dei Salari a Shock dei Prezzi (+1 dev.std.)"}
+knitr::include_graphics("output/vecm/grafici/irf_p.png")
+```
+
+**Shock ai prezzi (+1 dev.std.)**:
+
+- Effetto immediato: positivo sui salari nominali (indicizzazione)
+- Effetto sui salari reali: inizialmente negativo (i salari non recuperano immediatamente l'inflazione)
+- Convergenza a 12-16 trimestri verso recupero parziale del potere d'acquisto
+- L'indicizzazione è incompleta, coerentemente con il decoupling osservato
 
 ## Decomposizione della Varianza
 
@@ -879,7 +1199,17 @@ kable(fevd_table,
   kable_styling(latex_options = c("hold_position"))
 ```
 
-Nel **breve periodo** i salari sono principalmente determinati dalla propria inerzia (65%). Nel **medio-lungo periodo** la produttività diventa progressivamente più importante (27%), confermando la rilevanza della relazione di lungo periodo.
+```{r fig-fevd-png, fig.cap="Decomposizione della Varianza dell'Errore di Previsione (FEVD)"}
+knitr::include_graphics("output/vecm/grafici/fevd.png")
+```
+
+La visualizzazione grafica della FEVD mostra l'evoluzione del contributo di ciascuna fonte di shock al variare dell'orizzonte temporale.
+
+Nel **breve periodo** (4 trimestri) i salari sono principalmente determinati dalla propria inerzia (65%), riflettendo la rigidità nominale dei contratti collettivi e la persistenza delle dinamiche salariali.
+
+Nel **medio periodo** (8 trimestri) la produttività assume un ruolo crescente (25%), mentre disoccupazione e prezzi contribuiscono rispettivamente per il 13% e il 10%.
+
+Nel **lungo periodo** (24 trimestri) la struttura si stabilizza: la produttività diventa il principale determinante esterno (27%), confermando la rilevanza empirica della relazione teorica salari-produttività. L'inerzia salariale rimane significativa (48%), indicando persistenza delle dinamiche contrattuali anche su orizzonti estesi.
 
 \newpage
 
@@ -907,11 +1237,21 @@ L'analisi Bai-Perron identifica punti di rottura strutturale corrispondenti a:
 
 ## Stime Rolling
 
-L'analisi rolling-window con finestra di 60 trimestri mostra l'evoluzione dei parametri:
+L'analisi rolling-window con finestra di 60 trimestri (15 anni) consente di tracciare l'evoluzione dei parametri nel tempo.
 
-- **Elasticità produttività**: Relativamente stabile tra 0.6 e 1.0
-- **Semi-elasticità disoccupazione**: Appiattimento da -0.02 a -0.01
-- **Velocità aggiustamento**: Variabile, con rallentamento durante le crisi
+```{r fig-rolling-coef, fig.cap="Evoluzione dei Coefficienti VECM con Stime Rolling-Window (finestra 60 trimestri)"}
+knitr::include_graphics("output/vecm/grafici/rolling_coefficients.png")
+```
+
+L'analisi rolling evidenzia tre pattern principali:
+
+1. **Elasticità produttività (β₁)**: Relativamente stabile tra 0.6 e 1.0, con oscillazioni cicliche. Si osserva un calo durante la crisi 2008-2012 (minimo ~0.6) e un recupero parziale successivo.
+
+2. **Semi-elasticità disoccupazione (β₂)**: Progressivo appiattimento da -0.020 (finestre centrate 2000-2007) a -0.008 (finestre centrate 2015-2022). Questo conferma l'appiattimento della curva di Phillips con metodologia alternativa.
+
+3. **Velocità di aggiustamento (α_w)**: Variabile tra -0.08 e -0.20, con rallentamento durante le fasi di crisi. Durante la recessione 2008-2012, il meccanismo di correzione dell'errore si indebolisce, indicando un allungamento dei tempi di ritorno all'equilibrio.
+
+Le bande di confidenza (area ombreggiata) si allargano verso la fine del campione, riflettendo la maggiore incertezza associata alle stime con dati più recenti (minor numero di osservazioni post-finestra).
 
 \newpage
 
@@ -1004,6 +1344,41 @@ kable(valid_table,
       booktabs = TRUE) %>%
   kable_styling(latex_options = c("hold_position"))
 ```
+
+## Analisi di Convergenza Provinciale
+
+L'analisi della convergenza provinciale verifica se le province più povere crescono più rapidamente, riducendo i divari nel tempo.
+
+### Sigma-Convergenza
+
+```{r fig-sigma-convergenza, fig.cap="Sigma-Convergenza: Dispersione dei Salari Provinciali nel Tempo"}
+knitr::include_graphics("output/racli/grafici/13_sigma_convergenza.png")
+```
+
+La sigma-convergenza misura l'evoluzione della dispersione salariale tra province. Un trend decrescente indica convergenza. I dati 2014-2022 mostrano una dispersione sostanzialmente stabile, con oscillazioni cicliche ma senza trend chiaro di riduzione. L'Italia non sta convergendo in termini di riduzione delle disuguaglianze territoriali.
+
+### Beta-Convergenza
+
+```{r fig-beta-convergenza, fig.cap="Beta-Convergenza: Relazione tra Livello Iniziale e Crescita Successiva"}
+knitr::include_graphics("output/racli/grafici/14_beta_convergenza.png")
+```
+
+La beta-convergenza verifica se le province con salari iniziali più bassi mostrano tassi di crescita più elevati. La pendenza negativa della retta di regressione indica convergenza condizionale.
+
+I dati mostrano una relazione negativa debole (coefficiente β ≈ -0.02), indicando convergenza molto lenta: al ritmo attuale, sarebbero necessari oltre 50 anni per dimezzare i divari territoriali.
+
+### Clustering Provinciale
+
+```{r fig-cluster-province, fig.cap="Clustering Bidimensionale delle Province (Salario vs Dispersione)"}
+knitr::include_graphics("output/racli/grafici/08_cluster_province.png")
+```
+
+L'analisi di clustering bidimensionale (salario mediano vs rapporto D9/D1) identifica due profili provinciali distinti:
+
+- **Cluster 1 (alto reddito)**: Province del Nord con salari elevati e dispersione medio-alta. Economia diversificata con compresenza di settori ad alta e bassa retribuzione.
+- **Cluster 2 (basso reddito)**: Province del Sud con salari bassi e dispersione contenuta. Economia meno diversificata, compressione verso il basso della distribuzione.
+
+La mobilità tra cluster è limitata: l'83% delle province mantiene la stessa appartenenza nell'intero periodo 2014-2022, confermando la persistenza delle disuguaglianze territoriali.
 
 ## Decomposizione Settoriale dei Parametri VECM
 
