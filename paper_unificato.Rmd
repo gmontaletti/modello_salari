@@ -33,6 +33,7 @@ header-includes:
   - \renewcommand{\figurename}{Figura}
   - \renewcommand{\tablename}{Tabella}
   - \usepackage{fancyhdr}
+  - \setlength{\headheight}{14pt}
   - \pagestyle{fancy}
   - \fancyhead[L]{\leftmark}
   - \fancyhead[R]{}
@@ -105,7 +106,19 @@ stat_ripartizioni_2022 <- readRDS("output/racli/stat_ripartizioni_2022.rds")
 ranking_settori_nace <- readRDS("output/racli/ranking_settori_nace_2022.rds")
 sintesi_st <- readRDS("output/racli/sintesi_settori_territorio.rds")
 confronto_racli_vecm <- readRDS("output/racli/confronto_racli_vecm.rds")
-sintesi_validazione <- readRDS("output/racli/sintesi_validazione.rds")
+
+# Calcola statistiche di validazione
+sintesi_validazione <- list(
+  correlazione = cor(confronto_racli_vecm$salario_medio_racli,
+                     confronto_racli_vecm$w_nom_vecm,
+                     use = "complete.obs"),
+  rmse = sqrt(mean((confronto_racli_vecm$salario_medio_racli -
+                    scale(confronto_racli_vecm$w_nom_vecm)[,1] *
+                    sd(confronto_racli_vecm$salario_medio_racli) +
+                    mean(confronto_racli_vecm$salario_medio_racli))^2)),
+  trend_vecm = coef(lm(w_nom_vecm ~ anno, data = confronto_racli_vecm))[2],
+  trend_racli = coef(lm(salario_medio_racli ~ anno, data = confronto_racli_vecm))[2]
+)
 
 # Dati Imprese
 if (file.exists("output/imprese/sintesi_imprese.rds")) {

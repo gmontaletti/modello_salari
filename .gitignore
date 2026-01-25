@@ -17,6 +17,7 @@ Thumbs.db
 
 # Output files that can be regenerated
 *.html
+*.pdf
 modello_salari_results.rds
 dati_salari_italia.csv
 
