@@ -1,8 +1,8 @@
-# Analisi esplorativa dei dati ISTAT su salari e produttività
+# Determinanti e Differenziali Salariali in Italia
 
-**Modelli di analisi statistica ed econometrica**
+**Un'Analisi Integrata 2000-2025**
 
-Analisi delle determinanti salariali in Italia (1995-2024) mediante metodologia Vector Error Correction Model (VECM) e modelli di regressione.
+Analisi delle determinanti salariali in Italia mediante metodologia Vector Error Correction Model (VECM), analisi microdati RACLI, e indicatori di domanda di lavoro. Il progetto integra tre prospettive complementari (macro, micro, domanda) per fornire un quadro completo del "puzzle salariale italiano".
 
 ## Autore
 
@@ -47,22 +47,40 @@ Parametri attesi:
 - Diagnostica: Portmanteau, ARCH-LM, Jarque-Bera
 - Stabilità: CUSUM, rolling coefficients
 
+## Paper Unificato
+
+Il paper principale `paper_unificato.Rmd` consolida le analisi VECM, RACLI e imprese in un documento unico strutturato in 5 parti:
+
+1. **Parte I**: Contesto teorico, fonti dati e metodologia
+2. **Parte II**: Evidenza descrittiva (tendenze macro, differenziali, domanda lavoro)
+3. **Parte III**: Analisi econometrica VECM e parametri tempo-varianti
+4. **Parte IV**: Validazione macro-micro e scenari di policy
+5. **Parte V**: Sintesi risultati e implicazioni di policy
+
+Include executive summary bilingue (inglese/italiano) e appendici tecniche per la riproducibilità.
+
+```bash
+# Generazione paper unificato
+Rscript -e "rmarkdown::render('paper_unificato.Rmd')"
+```
+
 ## Struttura del progetto
 
 ```
 modello_salari/
+├── paper_unificato.Rmd     # Paper consolidato (output principale)
 ├── 00_download_data.R      # Download dati (ISTAT, RACLI, shapefile)
 │
 ├── vecm_prep.R             # Pipeline VECM
-├── vecm.Rmd                # Report VECM
+├── vecm.Rmd                # Report VECM (componente)
 ├── output/vecm/            # Risultati VECM
 │
 ├── racli_prep.R            # Pipeline RACLI
-├── racli.Rmd               # Report RACLI
+├── racli.Rmd               # Report RACLI (componente)
 ├── output/racli/           # Risultati RACLI
 │
 ├── imprese_prep.R          # Pipeline imprese
-├── imprese.Rmd             # Report imprese
+├── imprese.Rmd             # Report imprese (componente)
 ├── output/imprese/         # Risultati imprese
 │
 ├── data/                   # Dati input
@@ -82,7 +100,10 @@ Rscript racli_prep.R           # → output/racli/
 Rscript vecm_prep.R            # → output/vecm/
 Rscript imprese_prep.R         # → output/imprese/
 
-# 3. Generazione report
+# 3. Generazione paper unificato (output principale)
+Rscript -e "rmarkdown::render('paper_unificato.Rmd')"
+
+# 4. Report individuali (opzionale)
 Rscript -e "rmarkdown::render('racli.Rmd')"
 Rscript -e "rmarkdown::render('vecm.Rmd')"
 Rscript -e "rmarkdown::render('imprese.Rmd')"
@@ -145,8 +166,9 @@ L'installazione automatica è gestita dalla funzione `install_if_missing()` all'
 ```bibtex
 @software{montaletti2025salari,
   author = {Montaletti, Giampaolo},
-  title = {Analisi esplorativa dei dati ISTAT su salari e produttività: modelli di analisi statistica ed econometrica},
+  title = {Determinanti e Differenziali Salariali in Italia: Un'Analisi Integrata 2000-2025},
   year = {2025},
+  month = {1},
   url = {https://github.com/gmontaletti/modello_salari}
 }
 ```
