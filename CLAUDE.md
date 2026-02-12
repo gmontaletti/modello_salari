@@ -10,67 +10,77 @@ Econometric model analyzing wage determinants in Italy (1995-2024) using Vector 
 
 ```
 modello_salari/
-├── 00_download_data.R           # Consolidated data download (ISTAT, RACLI, shapefile, mapping)
+├── paper_unificato.Rmd     # OUTPUT PRINCIPALE
+├── README.md
+├── CLAUDE.md
+├── references.bib
+├── modello_salari.Rproj
+├── renv.lock
+├── .gitignore
+├── .claude/
 │
-├── racli_prep.R                 # RACLI analysis pipeline
-├── racli.Rmd                    # RACLI report
-├── output/racli/                # RACLI outputs (RDS + grafici/)
+├── scripts/                # Pipeline di analisi
+│   ├── 00_download_data.R
+│   ├── vecm_prep.R
+│   ├── racli_prep.R
+│   ├── imprese_prep.R
+│   └── preliminare_prep.R
 │
-├── vecm_prep.R                  # VECM analysis pipeline
-├── vecm.Rmd                     # VECM report
-├── output/vecm/                 # VECM outputs (RDS + grafici/)
+├── reports/                # Report componenti (secondari)
+│   ├── vecm.Rmd
+│   ├── racli.Rmd
+│   ├── imprese.Rmd
+│   └── preliminare.Rmd
 │
-├── imprese_prep.R               # Enterprise analysis pipeline
-├── imprese.Rmd                  # Enterprise report
-├── output/imprese/              # Enterprise outputs (RDS + grafici/)
+├── docs/                   # Documentazione di riferimento
+│   ├── fonti_dati_istat.md
+│   ├── documentazione_modello_salari.md
+│   └── determinanti_salari_economie_occidentali.md
 │
-├── preliminare_prep.R           # Preliminary analysis prep
-├── preliminare.Rmd              # Preliminary data report
-├── output/preliminare/          # Preliminary outputs
+├── R/functions.R           # Funzioni condivise
+├── data/                   # Dati input
+├── meta/                   # Metadata e codelist
+├── racli/                  # Dataflow RACLI grezzi
 │
-├── backup/                      # [NOT COMMITTED] Original scripts
-│   ├── 00_*.R, 01_*.R, ...      # Numbered original scripts
-│   ├── modello_*.R              # Legacy VECM scripts
-│   └── exploratory/             # Exploratory analyses
+├── output/                 # Risultati (solo sottodirectory)
+│   ├── vecm/               # VECM results + grafici/
+│   ├── racli/              # RACLI results + grafici/
+│   ├── imprese/            # Imprese results + grafici/
+│   └── preliminare/        # Dati preliminari
 │
-├── data/                        # Input data (ISTAT, shapefiles)
-├── meta/                        # Metadata and codelists
-├── racli/                       # Raw RACLI dataflows
-├── R/                           # Shared utility functions
-│
-├── CLAUDE.md, *.md              # Documentation
-├── references.bib               # Bibliography
-└── renv.lock, modello_salari.Rproj
+├── wip/                    # WIP non tracciato (gitignored)
+└── backup/                 # Script legacy (gitignored)
 ```
 
 ## Running the Analysis
 
 ```bash
 # 1. Download all data (run once)
-Rscript 00_download_data.R
+Rscript scripts/00_download_data.R
 
 # 2. Run specific analysis pipelines
-Rscript racli_prep.R           # RACLI analysis → output/racli/
-Rscript vecm_prep.R            # VECM analysis → output/vecm/
-Rscript imprese_prep.R         # Enterprise analysis → output/imprese/
-Rscript preliminare_prep.R     # Preliminary analysis → output/preliminare/
+Rscript scripts/racli_prep.R           # RACLI analysis → output/racli/
+Rscript scripts/vecm_prep.R            # VECM analysis → output/vecm/
+Rscript scripts/imprese_prep.R         # Enterprise analysis → output/imprese/
+Rscript scripts/preliminare_prep.R     # Preliminary analysis → output/preliminare/
 
 # 3. Generate reports
-Rscript -e "rmarkdown::render('racli.Rmd')"
-Rscript -e "rmarkdown::render('vecm.Rmd')"
-Rscript -e "rmarkdown::render('imprese.Rmd')"
-Rscript -e "rmarkdown::render('preliminare.Rmd')"
+Rscript -e "rmarkdown::render('paper_unificato.Rmd')"
+Rscript -e "rmarkdown::render('reports/racli.Rmd')"
+Rscript -e "rmarkdown::render('reports/vecm.Rmd')"
+Rscript -e "rmarkdown::render('reports/imprese.Rmd')"
+Rscript -e "rmarkdown::render('reports/preliminare.Rmd')"
 ```
 
 ## Main Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `00_download_data.R` | Downloads ISTAT, OECD, RACLI data, shapefiles, creates geographic mapping |
-| `racli_prep.R` | Full RACLI pipeline: data prep, descriptives, inequality, clustering, regressions, visualizations, cartography |
-| `vecm_prep.R` | Full VECM pipeline: data generation, stationarity, cointegration, estimation, diagnostics, IRF/FEVD, policy scenarios |
-| `imprese_prep.R` | Enterprise analysis: data cleaning, statistics, visualizations |
-| `preliminare_prep.R` | Preliminary data preparation |
+| `scripts/00_download_data.R` | Downloads ISTAT, OECD, RACLI data, shapefiles, creates geographic mapping |
+| `scripts/racli_prep.R` | Full RACLI pipeline: data prep, descriptives, inequality, clustering, regressions, visualizations, cartography |
+| `scripts/vecm_prep.R` | Full VECM pipeline: data generation, stationarity, cointegration, estimation, diagnostics, IRF/FEVD, policy scenarios |
+| `scripts/imprese_prep.R` | Enterprise analysis: data cleaning, statistics, visualizations |
+| `scripts/preliminare_prep.R` | Preliminary data preparation |
 
 ## Key Functions
 

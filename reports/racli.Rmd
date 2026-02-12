@@ -68,16 +68,16 @@ I dati provengono dall'indagine ISTAT-RACLI e coprono:
 
 ```{r load-data}
 # Carica sintesi risultati
-sintesi_descrittive <- readRDS("output/sintesi_descrittive.rds")
-sintesi_distributiva <- readRDS("output/sintesi_distributiva.rds")
-sintesi_clustering <- readRDS("output/sintesi_clustering.rds")
-sintesi_regressioni <- readRDS("output/sintesi_regressioni.rds")
+sintesi_descrittive <- readRDS("output/racli/sintesi_descrittive.rds")
+sintesi_distributiva <- readRDS("output/racli/sintesi_distributiva.rds")
+sintesi_clustering <- readRDS("output/racli/sintesi_clustering.rds")
+sintesi_regressioni <- readRDS("output/racli/sintesi_regressioni.rds")
 
 # Carica dati completi
-gap_gender_2022 <- readRDS("output/gap_gender_2022.rds")
-gap_educazione_2022 <- readRDS("output/gap_educazione_2022.rds")
-gap_contratto_2022 <- readRDS("output/gap_contratto_2022.rds")
-stat_ripartizioni_2022 <- readRDS("output/stat_ripartizioni_2022.rds")
+gap_gender_2022 <- readRDS("output/racli/gap_gender_2022.rds")
+gap_educazione_2022 <- readRDS("output/racli/gap_educazione_2022.rds")
+gap_contratto_2022 <- readRDS("output/racli/gap_contratto_2022.rds")
+stat_ripartizioni_2022 <- readRDS("output/racli/stat_ripartizioni_2022.rds")
 ```
 
 # Analisi Descrittiva
@@ -87,7 +87,7 @@ stat_ripartizioni_2022 <- readRDS("output/stat_ripartizioni_2022.rds")
 Nel 2022, il salario mediano orario nazionale si attesta a **€`r sprintf("%.2f", sintesi_descrittive$salario_mediano_nazionale_2022)`/ora**. Nel periodo 2014-2022, i salari sono cresciuti del **`r sprintf("%.1f%%", sintesi_descrittive$crescita_media_2014_2022)`** complessivamente, con un tasso di crescita annuo medio dello **`r sprintf("%.2f%%", sintesi_regressioni$crescita_annua_pct)`**.
 
 ```{r fig-evoluzione, fig.cap="Evoluzione salario mediano nazionale 2014-2022", out.width="90%"}
-knitr::include_graphics("output/grafici/01_evoluzione_salari_nazionale.png")
+knitr::include_graphics("output/racli/grafici/01_evoluzione_salari_nazionale.png")
 ```
 
 ## Differenziali di Genere
@@ -107,7 +107,7 @@ gap_gender_2022 %>%
 ```
 
 ```{r fig-gap-gender, fig.cap="Evoluzione gap di genere 2014-2022", out.width="90%"}
-knitr::include_graphics("output/grafici/02_gap_genere_tempo.png")
+knitr::include_graphics("output/racli/grafici/02_gap_genere_tempo.png")
 ```
 
 \newpage
@@ -130,7 +130,7 @@ gap_educazione_2022 %>%
 ```
 
 ```{r fig-educazione, fig.cap="Salari per livello educativo (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/09_salari_educazione.png")
+knitr::include_graphics("output/racli/grafici/09_salari_educazione.png")
 ```
 
 ## Premio Contratto Permanente
@@ -151,7 +151,7 @@ gap_contratto_2022 %>%
 ```
 
 ```{r fig-contratto, fig.cap="Salari per tipo contratto (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/10_salari_contratto.png")
+knitr::include_graphics("output/racli/grafici/10_salari_contratto.png")
 ```
 
 \newpage
@@ -176,11 +176,11 @@ stat_ripartizioni_2022 %>%
 ```
 
 ```{r fig-ripartizioni, fig.cap="Salari mediani per ripartizione geografica (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/03_salari_ripartizioni.png")
+knitr::include_graphics("output/racli/grafici/03_salari_ripartizioni.png")
 ```
 
 ```{r fig-boxplot, fig.cap="Distribuzione salari provinciali per ripartizione (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/06_boxplot_salari_ripartizioni.png")
+knitr::include_graphics("output/racli/grafici/06_boxplot_salari_ripartizioni.png")
 ```
 
 ## Cartografie Provinciali
@@ -188,25 +188,25 @@ knitr::include_graphics("output/grafici/06_boxplot_salari_ripartizioni.png")
 Le mappe seguenti illustrano la distribuzione territoriale dei differenziali salariali a livello provinciale, evidenziando pattern geografici significativi.
 
 ```{r fig-mappa-salari, fig.cap="Mappa salari mediani provinciali (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/17_mappa_salari_province_2022.png")
+knitr::include_graphics("output/racli/grafici/17_mappa_salari_province_2022.png")
 ```
 
 La mappa dei salari mediani conferma la persistenza del divario Nord-Sud, con le province del Nord-Ovest (Lombardia, Piemonte) e del Nord-Est (Emilia-Romagna, Veneto) che presentano retribuzioni orarie sistematicamente superiori rispetto al Mezzogiorno.
 
 ```{r fig-mappa-crescita, fig.cap="Mappa crescita salariale 2014-2022 (%)", out.width="90%"}
-knitr::include_graphics("output/grafici/18_mappa_crescita_salari_2014_2022.png")
+knitr::include_graphics("output/racli/grafici/18_mappa_crescita_salari_2014_2022.png")
 ```
 
 La mappa della crescita salariale mostra una distribuzione più eterogenea, con alcune province meridionali che registrano tassi di crescita superiori alla media nazionale, coerentemente con le evidenze di $\beta$-convergenza.
 
 ```{r fig-mappa-dispersione, fig.cap="Mappa dispersione salariale D9/D1 (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/19_mappa_disuguaglianza_D9_D1.png")
+knitr::include_graphics("output/racli/grafici/19_mappa_disuguaglianza_D9_D1.png")
 ```
 
 Il rapporto interdecile D9/D1 presenta variabilità geografica significativa, con livelli di dispersione salariale più elevati in alcune province metropolitane e nelle aree con maggiore presenza di settori ad alta variabilità retributiva.
 
 ```{r fig-mappa-cluster, fig.cap="Mappa clustering k-means province (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/20_mappa_cluster_province.png")
+knitr::include_graphics("output/racli/grafici/20_mappa_cluster_province.png")
 ```
 
 Il clustering territoriale identifica due profili provinciali distinti: un cluster ad alto reddito (prevalentemente Nord) e un cluster a basso reddito (prevalentemente Sud e Isole), con alcune eccezioni significative che evidenziano dinamiche locali specifiche.
@@ -221,9 +221,9 @@ L'analisi dei dati RACLI per settore economico (classificazione NACE 2007) conse
 
 ```{r load-sector-data}
 # Carica dati settoriali
-ranking_settori_nace <- readRDS("output/ranking_settori_nace_2022.rds")
-dispersione_settori <- readRDS("output/dispersione_settori_2022.rds")
-gap_gender_settori <- readRDS("output/gap_gender_settori_2022.rds")
+ranking_settori_nace <- readRDS("output/racli/ranking_settori_nace_2022.rds")
+dispersione_settori <- readRDS("output/racli/dispersione_settori_2022.rds")
+gap_gender_settori <- readRDS("output/racli/gap_gender_settori_2022.rds")
 ```
 
 I settori analizzati presentano una significativa variabilità nei livelli retributivi: il salario mediano orario varia da un minimo di €`r sprintf("%.2f", min(ranking_settori_nace$salario_mediano))` a un massimo di €`r sprintf("%.2f", max(ranking_settori_nace$salario_mediano))`, con un rapporto di circa `r sprintf("%.1f", max(ranking_settori_nace$salario_mediano)/min(ranking_settori_nace$salario_mediano))`:1 tra il settore meglio e peggio retribuito.
@@ -265,7 +265,7 @@ ranking_settori_nace %>%
 ```
 
 ```{r fig-ranking-settori, fig.cap="Ranking settori NACE per salario mediano (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/16_salari_settori_nace.png")
+knitr::include_graphics("output/racli/grafici/16_salari_settori_nace.png")
 ```
 
 ## Dispersione Salariale Intra-Settoriale
@@ -289,7 +289,7 @@ dispersione_settori %>%
 ```
 
 ```{r fig-scatter-settori, fig.cap="Relazione tra livello salariale e dispersione per settore (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/17_scatter_salari_dispersione_settori.png")
+knitr::include_graphics("output/racli/grafici/17_scatter_salari_dispersione_settori.png")
 ```
 
 ## Gap di Genere per Settore
@@ -312,7 +312,7 @@ gap_gender_settori %>%
 ```
 
 ```{r fig-gap-settori, fig.cap="Gap salariale di genere per settore NACE (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/18_gap_genere_settori.png")
+knitr::include_graphics("output/racli/grafici/18_gap_genere_settori.png")
 ```
 
 ## Interazione Settore-Territorio
@@ -321,9 +321,9 @@ L'analisi del File RACLI 6 consente di studiare l'interazione tra dimensione set
 
 ```{r load-sector-territory}
 # Carica dati interazione settore × territorio
-gap_territoriale_settori <- readRDS("output/gap_territoriale_settori_2022.rds")
-cv_territoriale_settori <- readRDS("output/cv_territoriale_settori_2022.rds")
-sintesi_st <- readRDS("output/sintesi_settori_territorio.rds")
+gap_territoriale_settori <- readRDS("output/racli/gap_territoriale_settori_2022.rds")
+cv_territoriale_settori <- readRDS("output/racli/cv_territoriale_settori_2022.rds")
+sintesi_st <- readRDS("output/racli/sintesi_settori_territorio.rds")
 ```
 
 ### Variabilità Territoriale per Settore
@@ -347,7 +347,7 @@ gap_territoriale_settori %>%
 ```
 
 ```{r fig-heatmap-settori, fig.cap="Salario mediano per settore e ripartizione geografica (2022)", out.width="95%"}
-knitr::include_graphics("output/grafici/19_heatmap_settori_ripartizioni.png")
+knitr::include_graphics("output/racli/grafici/19_heatmap_settori_ripartizioni.png")
 ```
 
 ### Settori "Equalizzatori" vs "Polarizzatori"
@@ -381,7 +381,7 @@ cv_territoriale_settori %>%
 ```
 
 ```{r fig-gap-nord-sud, fig.cap="Gap salariale Nord-Sud per settore NACE (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/20_gap_nord_sud_settori.png")
+knitr::include_graphics("output/racli/grafici/20_gap_nord_sud_settori.png")
 ```
 
 ## Sintesi Differenziali Settoriali
@@ -407,7 +407,7 @@ L'analisi settoriale evidenzia i seguenti fatti stilizzati:
 Il rapporto interdecile D9/D1 a livello nazionale nel 2022 è pari a **`r sprintf("%.2f", sintesi_distributiva$D9_D1_2022)`**, indicando che i lavoratori nel 90° percentile guadagnano circa 2.6 volte i lavoratori nel 10° percentile. Questo indicatore è preferito rispetto all'indice di Gini in quanto direttamente calcolabile dai dati RACLI disponibili (che forniscono solo i decili D1, D5, D9) senza necessità di assunzioni parametriche sulla forma della distribuzione.
 
 ```{r fig-D9D1, fig.cap="Rapporto interdecile D9/D1", out.width="90%"}
-knitr::include_graphics("output/grafici/05_rapporto_D9_D1.png")
+knitr::include_graphics("output/racli/grafici/05_rapporto_D9_D1.png")
 ```
 
 ## Fan Chart Distribuzione Decili
@@ -415,7 +415,7 @@ knitr::include_graphics("output/grafici/05_rapporto_D9_D1.png")
 L'evoluzione della distribuzione salariale mostra stabilità nella struttura relativa tra decili, con tutti i percentili che crescono a ritmi simili.
 
 ```{r fig-fanchart, fig.cap="Fan chart distribuzione salariale: decili D1, D5, D9 (2014-2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/12_fan_chart_decili.png")
+knitr::include_graphics("output/racli/grafici/12_fan_chart_decili.png")
 ```
 
 \newpage
@@ -434,11 +434,11 @@ I test di convergenza territoriale mostrano evidenze significative di **catching
 - **$\beta$-convergenza**: `r ifelse(sintesi_distributiva$convergenza_beta, "CONFERMATA", "NON CONFERMATA")` - le province con salari iniziali più bassi crescono più velocemente
 
 ```{r fig-sigma, fig.cap="$\\sigma$-convergenza: coefficiente di variazione salari provinciali", out.width="90%"}
-knitr::include_graphics("output/grafici/13_sigma_convergenza.png")
+knitr::include_graphics("output/racli/grafici/13_sigma_convergenza.png")
 ```
 
 ```{r fig-beta, fig.cap="$\\beta$-convergenza: regressione crescita su livello iniziale", out.width="90%"}
-knitr::include_graphics("output/grafici/14_beta_convergenza.png")
+knitr::include_graphics("output/racli/grafici/14_beta_convergenza.png")
 ```
 
 \newpage
@@ -455,11 +455,11 @@ L'analisi di clustering k-means identifica **`r sintesi_clustering$k_ottimale` c
 Le province ad alto reddito presentano sia salari più elevati (+9%) sia maggiore dispersione salariale interna (D9/D1 più elevato).
 
 ```{r fig-cluster, fig.cap="Clustering province: k-means con k=2", out.width="90%"}
-knitr::include_graphics("output/grafici/08_cluster_province.png")
+knitr::include_graphics("output/racli/grafici/08_cluster_province.png")
 ```
 
 ```{r fig-topbottom, fig.cap="Top 10 e Bottom 10 province per salario mediano (2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/15_top_bottom_province.png")
+knitr::include_graphics("output/racli/grafici/15_top_bottom_province.png")
 ```
 
 \newpage
@@ -480,7 +480,7 @@ Il modello OLS con interazioni (R² = 0.977) permette di stimare i premi settori
 
 ```{r tab-premi-settoriali-stimati}
 # Carica differenziali stimati dal modello
-diff_settori <- readRDS("output/differenziali_settoriali_stimati.rds")
+diff_settori <- readRDS("output/racli/differenziali_settoriali_stimati.rds")
 
 diff_settori %>%
   mutate(
@@ -507,7 +507,7 @@ Il modello con interazioni settore×genere rivela che il gap di genere non è un
 
 ```{r tab-interaz-genere}
 # Carica interazioni settore × genere
-interaz_genere <- readRDS("output/interazioni_settore_genere.rds")
+interaz_genere <- readRDS("output/racli/interazioni_settore_genere.rds")
 gap_base <- -32.1  # dal modello
 
 interaz_genere %>%
@@ -585,7 +585,7 @@ I risultati dell'analisi RACLI micro-dati sono coerenti con le evidenze macro de
 La validazione statistica conferma una correlazione molto forte (r = 0.944, p < 0.001) tra le serie RACLI aggregate a livello nazionale e i dati del modello VECM per il periodo sovrapposto 2014-2022, attestando la robustezza e coerenza delle due fonti informative.
 
 ```{r fig-validazione, fig.cap="Validazione RACLI vs VECM (2014-2022)", out.width="90%"}
-knitr::include_graphics("output/grafici/16_validazione_racli_vecm.png")
+knitr::include_graphics("output/racli/grafici/16_validazione_racli_vecm.png")
 ```
 
 \newpage

@@ -24,5 +24,8 @@ dati_salari_italia.csv
 # Backup directory (non committare)
 backup/
 
+# Work in progress
+wip/
+
 # Log files
 *.log

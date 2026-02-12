@@ -87,14 +87,14 @@ I dati provengono dal dataset ISTAT `imprese_con_dipendenti` e coprono:
 
 ```{r load-data}
 # Carica sintesi risultati
-sintesi <- readRDS("output/sintesi_imprese.rds")
-totale_economia <- readRDS("output/totale_economia_0015.rds")
-stat_settori <- readRDS("output/stat_descrittive_settori.rds")
-ranking_settori <- readRDS("output/ranking_settori_indice_2025Q3.rds")
-decomp_crescita <- readRDS("output/decomposizione_crescita_settori.rds")
-decomp_totale <- readRDS("output/decomposizione_crescita_totale.rds")
-volatilita_settori <- readRDS("output/volatilita_settori.rds")
-confronto_dimensione <- readRDS("output/confronto_dimensione_aziendale.rds")
+sintesi <- readRDS("output/imprese/sintesi_imprese.rds")
+totale_economia <- readRDS("output/imprese/totale_economia_0015.rds")
+stat_settori <- readRDS("output/imprese/stat_descrittive_settori.rds")
+ranking_settori <- readRDS("output/imprese/ranking_settori_indice_2025Q3.rds")
+decomp_crescita <- readRDS("output/imprese/decomposizione_crescita_settori.rds")
+decomp_totale <- readRDS("output/imprese/decomposizione_crescita_totale.rds")
+volatilita_settori <- readRDS("output/imprese/volatilita_settori.rds")
+confronto_dimensione <- readRDS("output/imprese/confronto_dimensione_aziendale.rds")
 ```
 
 # Dati e Metodologia
@@ -152,7 +152,7 @@ L'indice MHOUR_JV per il totale economia (codice 0015, W\_GE1) mostra **`r forma
 Il valore 2025-Q3 di **`r sprintf("%.1f", sintesi$indice_totale_2025Q3)`** indica che le ore lavorate sono aumentate del **`r sprintf("%.1f%%", sintesi$indice_totale_2025Q3 - 100)`** rispetto al 2021.
 
 ```{r fig-evoluzione, fig.cap="Evoluzione indice ore lavorate totale economia (codice 0015). W\\_GE1 (imprese con 1 o più dipendenti) e W\\_GE10 (imprese con 10 o più dipendenti, sottoinsieme di W\\_GE1).", fig.width=10, fig.height=6}
-knitr::include_graphics("output/grafici/21_evoluzione_indice_totale.png")
+knitr::include_graphics("output/imprese/grafici/21_evoluzione_indice_totale.png")
 ```
 
 La Figura mostra l'evoluzione dell'indice per entrambe le classificazioni dimensionali, con evidenza dello shock COVID-19 nel 2020-Q2 e il recupero successivo. Il superamento della base 100 (anno 2021) avviene nel 2023 per entrambe le popolazioni.
@@ -162,13 +162,13 @@ La Figura mostra l'evoluzione dell'indice per entrambe le classificazioni dimens
 L'impatto della pandemia COVID-19 è visibile come forte contrazione nel 2020-Q2, seguito da recupero graduale nel 2020-2021. Il ritorno ai livelli pre-COVID (baseline 2019-Q4) avviene nel 2023-Q1 per W\_GE1.
 
 ```{r fig-recupero-covid, fig.cap="Recupero post-COVID rispetto alla baseline 2019-Q4. Il ritorno ai livelli pre-pandemici richiede circa 3 anni.", fig.width=10, fig.height=6}
-knitr::include_graphics("output/grafici/33_recupero_post_covid.png")
+knitr::include_graphics("output/imprese/grafici/33_recupero_post_covid.png")
 ```
 
 ## Variazioni Temporali
 
 ```{r fig-variazioni, fig.cap="Variazioni percentuali trimestrali e annuali dell'indice MHOUR\\_JV (W\\_GE1). Le variazioni trimestrali mostrano maggiore volatilità.", fig.width=10, fig.height=6}
-knitr::include_graphics("output/grafici/27_variazioni_totale.png")
+knitr::include_graphics("output/imprese/grafici/27_variazioni_totale.png")
 ```
 
 Le variazioni trimestrali oscillano tra -5% e +5%, con picchi negativi durante COVID-19. Le variazioni annuali mostrano trend più stabile, confermando la natura temporanea degli shock.
@@ -199,7 +199,7 @@ kable(
 Il settore con l'indice più elevato nel 2025-Q3 è **`r sintesi$settore_max_indice_2025`** (indice `r ranking_settori$ore_migliaia[1]`), seguito da servizi di alloggio/ristorazione e istruzione. Questi settori mostrano una forte espansione post-COVID, superando significativamente i livelli del 2021.
 
 ```{r fig-ranking, fig.cap="Ranking settori per indice ore 2025-Q3. Top 8 e Bottom 8 settori mostrano forte eterogeneità settoriale.", fig.width=10, fig.height=8}
-knitr::include_graphics("output/grafici/25_ranking_settori_2025Q3.png")
+knitr::include_graphics("output/imprese/grafici/25_ranking_settori_2025Q3.png")
 ```
 
 ## Crescita Settoriale 2015-2025
@@ -230,11 +230,11 @@ kable(
 Il settore con la massima crescita è **`r sintesi$settore_max_crescita`**, mentre il minimo è **`r sintesi$settore_min_crescita`**.
 
 ```{r fig-crescita, fig.cap="Crescita settoriale 2015-Q1 to 2025-Q3. Forte eterogeneità tra settori, con dinamiche post-COVID divergenti.", fig.width=10, fig.height=8}
-knitr::include_graphics("output/grafici/23_crescita_settoriale.png")
+knitr::include_graphics("output/imprese/grafici/23_crescita_settoriale.png")
 ```
 
 ```{r fig-cagr, fig.cap="CAGR settoriale 2015-2025. Tassi di crescita annuali composti mostrano pattern strutturali.", fig.width=10, fig.height=8}
-knitr::include_graphics("output/grafici/31_cagr_settoriale.png")
+knitr::include_graphics("output/imprese/grafici/31_cagr_settoriale.png")
 ```
 
 ## Volatilità Settoriale
@@ -263,17 +263,17 @@ kable(
 Il settore più volatile è **`r sintesi$settore_piu_volatile`**, riflettendo la sensibilità ai cicli economici e agli shock esogeni (es. COVID-19).
 
 ```{r fig-volatilita, fig.cap="Volatilità settoriale misurata come deviazione standard delle variazioni trimestrali.", fig.width=10, fig.height=6}
-knitr::include_graphics("output/grafici/28_volatilita_settori.png")
+knitr::include_graphics("output/imprese/grafici/28_volatilita_settori.png")
 ```
 
 ```{r fig-scatter-vol-crescita, fig.cap="Relazione volatilità-crescita settoriale. Settori con alta crescita mostrano maggiore volatilità.", fig.width=10, fig.height=6}
-knitr::include_graphics("output/grafici/29_scatter_volatilita_crescita.png")
+knitr::include_graphics("output/imprese/grafici/29_scatter_volatilita_crescita.png")
 ```
 
 ## Shock COVID-19 Settoriale
 
 ```{r fig-shock-covid, fig.cap="Impatto COVID-19 per settore (variazione % 2019 vs 2020). Servizi di alloggio/ristorazione e attività artistiche mostrano i maggiori shock negativi.", fig.width=10, fig.height=6}
-knitr::include_graphics("output/grafici/32_shock_covid_settori.png")
+knitr::include_graphics("output/imprese/grafici/32_shock_covid_settori.png")
 ```
 
 L'impatto settoriale del COVID-19 mostra forte eterogeneità. I settori dei servizi di consumo (alloggio, ristorazione, attività artistiche) subiscono i maggiori shock negativi, mentre alcuni settori industriali e servizi essenziali resistono meglio.
@@ -309,7 +309,7 @@ kable(
 ```
 
 ```{r fig-gap, fig.cap="Evoluzione gap percentuale W\\_GE10 vs W\\_GE1. W\\_GE10 (imprese con 10 o più dipendenti) è un sottoinsieme di W\\_GE1 (imprese con 1 o più dipendenti).", fig.width=10, fig.height=6}
-knitr::include_graphics("output/grafici/24_gap_W_GE10_W_GE1.png")
+knitr::include_graphics("output/imprese/grafici/24_gap_W_GE10_W_GE1.png")
 ```
 
 Il gap si è ridotto nel tempo, passando da circa -4% nel 2015 a circa 0% nel 2025, suggerendo che la quota delle imprese con 10 o più dipendenti sul totale ore lavorate è aumentata nel periodo.
