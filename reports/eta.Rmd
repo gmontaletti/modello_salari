@@ -1,0 +1,619 @@
+---
+title: "Convergenza Salariale Generazionale in Italia"
+subtitle: "Giovani (15-29) vs. Senior (50+): Analisi dei Differenziali Retributivi 2014-2022"
+author:
+  - "Giampaolo Montaletti"
+  - "ORCID: 0009-0002-5327-1122"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+lang: it
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    fig_caption: true
+    latex_engine: xelatex
+    keep_tex: false
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{float}
+  - \usepackage{graphicx}
+  - \floatplacement{figure}{H}
+  - \renewcommand{\figurename}{Figura}
+  - \renewcommand{\tablename}{Tabella}
+bibliography: ../references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE,
+  fig.align = "center",
+  out.width = "100%"
+)
+library(knitr)
+library(kableExtra)
+library(data.table)
+```
+
+```{r load-data}
+# 1. Caricamento dati pre-computati -----
+gap_naz <- readRDS("../output/racli/gap_eta_nazionale.rds")
+gap_prov <- readRDS("../output/racli/gap_eta_province.rds")
+gap_sett <- readRDS("../output/racli/gap_eta_settori.rds")
+sigma <- readRDS("../output/racli/sigma_convergence_eta.rds")
+# sigma e' una lista: $province, $settori, $per_ripartizione
+beta <- readRDS("../output/racli/beta_convergence_eta.rds")
+# beta e' una lista: $province_uncond, $province_cond, $settori_uncond (oggetti lm con $coef)
+model_beta <- readRDS("../output/racli/model_beta_eta.rds")
+# model_beta e' una lista: $prov, $prov_cond, $sett (oggetti lm)
+model_panel <- readRDS("../output/racli/model_panel_eta.rds")
+# model_panel e' una lista: $model, $year_fe, $vcov_cl
+decomp_geo <- readRDS("../output/racli/decomposizione_geo_eta.rds")
+# decomp_geo e' una lista: $components, $detail, $delta_total
+decomp_sett <- readRDS("../output/racli/decomposizione_settore_eta.rds")
+# decomp_sett e' una lista: $components, $detail, $delta_total
+analisi_congiunta <- readRDS("../output/racli/analisi_congiunta_eta.rds")
+# analisi_congiunta e' una lista: $gap_data, $anova, $ols_model, $ols_robust
+robustezza <- readRDS("../output/racli/robustezza_eta.rds")
+# robustezza e' una lista: $gap_riferimento_30_49, $gap_per_decile, $beta_no_covid, $sigma_no_covid
+```
+
+\newpage
+
+# Sintesi esecutiva {-}
+
+Questo rapporto analizza l'evoluzione del differenziale retributivo tra lavoratori giovani (15-29 anni) e lavoratori senior (50 anni e oltre) in Italia nel periodo 2014-2022, utilizzando i microdati amministrativi RACLI dell'ISTAT. La domanda di ricerca principale riguarda l'esistenza e la direzione di un processo di convergenza o divergenza salariale generazionale: i salari dei giovani si stanno avvicinando a quelli dei lavoratori più anziani, oppure il divario si sta ampliando?
+
+I risultati indicano un andamento di convergenza del gap salariale generazionale a livello nazionale. Il premio salariale per anzianità, misurato come differenza logaritmica tra retribuzione oraria mediana dei lavoratori 50+ e quella dei lavoratori 15-29, è passato da 0,239 punti logaritmici nel 2014 (pari a un differenziale del 26,9%) a 0,202 nel 2022 (22,4%). Questo andamento non è uniforme lungo la distribuzione salariale: al primo decile (D1) il gap si riduce moderatamente da 0,162 a 0,147, mentre al nono decile (D9) la contrazione è più marcata, da 0,633 a 0,547. La convergenza è dunque più pronunciata nella parte alta della distribuzione retributiva.
+
+L'analisi della varianza mostra che il settore economico di appartenenza è il fattore dominante, spiegando l'87,6% della variabilità complessiva del gap generazionale. La componente territoriale contribuisce per l'1,6%, mentre l'interazione geografia-settore aggiunge un ulteriore 6,8%. Le province del Mezzogiorno (gap 2022: 0,156-0,157) presentano differenziali generazionali più contenuti rispetto al Nord-Ovest (0,252), un risultato apparentemente controintuitivo che riflette la compressione verso il basso dei salari di tutte le classi di età nelle aree a minore sviluppo economico.
+
+Sul piano delle implicazioni, i risultati suggeriscono che la composizione settoriale dell'occupazione giovanile è il principale determinante del gap generazionale. La convergenza osservata nel periodo 2014-2022 è trainata prevalentemente da dinamiche interne ai settori (within), non dalla riallocazione dei lavoratori tra settori o territori. I settori con la maggiore riduzione del gap sono ICT (J), trasporti (H) e attività estrattive (B), che hanno registrato contrazioni del differenziale superiori a 0,13 punti logaritmici.
+
+\newpage
+
+# Introduzione
+
+Il mercato del lavoro italiano presenta caratteristiche strutturali che differenziano in modo significativo le condizioni retributive dei lavoratori in funzione della loro età anagrafica. Il sistema contrattuale italiano, fondato sulla contrattazione collettiva nazionale con scatti di anzianità e progressioni automatiche, tende a generare profili retributivi crescenti con l'età che non necessariamente riflettono differenziali di produttività. A questa componente istituzionale si aggiunge l'effetto della segmentazione del mercato del lavoro, che concentra i lavoratori più giovani in contratti temporanei, part-time involontario e settori a bassa retribuzione.
+
+L'Italia si distingue nel panorama europeo per un tasso di disoccupazione giovanile strutturalmente elevato, che nel periodo in esame ha oscillato tra il 29% e il 43%, e per un livello retributivo d'ingresso particolarmente contenuto rispetto alla media OCSE. Questi elementi rendono l'analisi del differenziale retributivo generazionale un indicatore rilevante per comprendere la distribuzione intertemporale delle risorse e le prospettive di mobilità economica ascendente.
+
+## Dati RACLI
+
+I dati utilizzati provengono dal Registro Annuale sul Costo del Lavoro nelle Imprese (RACLI) dell'ISTAT, una fonte amministrativa che integra informazioni da archivi previdenziali e fiscali. Il RACLI presenta vantaggi rilevanti rispetto alle indagini campionarie: copertura pressoché censuaria del settore privato, assenza di errori di autodichiarazione sui redditi e disponibilità di retribuzioni orarie lorde che neutralizzano le differenze nell'orario di lavoro.
+
+Il dataset copre il periodo 2014-2022 con frequenza annuale e fornisce, per ciascuna combinazione di caratteristiche (età, territorio, settore), le seguenti misure retributive:
+
+- **Retribuzione media oraria** (media aritmetica)
+- **Primo decile (D1)**: soglia al di sotto della quale si colloca il 10% delle retribuzioni più basse
+- **Mediana (D5)**: valore centrale della distribuzione
+- **Nono decile (D9)**: soglia al di sopra della quale si colloca il 10% delle retribuzioni più alte
+
+Le classi di età utilizzate sono quelle standard ISTAT: 15-29, 30-49 e 50 anni e oltre. In questo rapporto, il confronto principale è tra la classe più giovane (15-29) e quella più anziana (50+), con la classe intermedia (30-49) utilizzata nelle verifiche di robustezza.
+
+## Domande di ricerca
+
+L'analisi si propone di rispondere a quattro domande:
+
+1. **Dimensione e dinamica del gap**: qual è l'entità del differenziale retributivo tra giovani e senior e come si è evoluto nel periodo 2014-2022?
+2. **Convergenza territoriale**: le province italiane mostrano una tendenza alla convergenza nel gap salariale generazionale, oppure le differenze territoriali si stanno ampliando?
+3. **Convergenza settoriale**: i settori economici presentano dinamiche convergenti nel gap generazionale e quale ruolo gioca la composizione settoriale dell'occupazione?
+4. **Componenti strutturali**: quanto del cambiamento osservato nel gap è attribuibile a variazioni interne (within) ai territori e ai settori, e quanto alla riallocazione dell'occupazione tra di essi (between)?
+
+## Struttura del rapporto
+
+Il rapporto è organizzato come segue. La Sezione 2 illustra la metodologia, dalla definizione del gap alle tecniche di convergenza e decomposizione. La Sezione 3 presenta i dati descrittivi sul gap generazionale a livello nazionale e territoriale. Le Sezioni 4 e 5 analizzano rispettivamente la convergenza territoriale e settoriale, utilizzando i test di sigma-convergenza e beta-convergenza. La Sezione 6 propone la decomposizione shift-share del gap e l'analisi congiunta geografia-settore. La Sezione 7 esamina gli effetti fissi di periodo del modello panel. La Sezione 8 riporta le verifiche di robustezza. La Sezione 9 conclude con una sintesi dei risultati e le implicazioni.
+
+\newpage
+
+# Metodologia
+
+Questa sezione descrive gli strumenti analitici impiegati per misurare il gap salariale generazionale e per verificare l'esistenza di processi di convergenza. L'approccio metodologico combina analisi descrittiva, test di convergenza di derivazione macroeconomica e tecniche di decomposizione strutturale.
+
+## Definizione del gap salariale
+
+Il gap salariale generazionale è definito come la differenza logaritmica tra la retribuzione oraria dei lavoratori senior (50+) e quella dei lavoratori giovani (15-29):
+
+$$
+\text{gap}_{it} = \ln(W_{it}^{50+}) - \ln(W_{it}^{15-29})
+$$
+
+dove $i$ indica l'unità territoriale o settoriale e $t$ l'anno. L'uso del logaritmo rende il gap interpretabile in termini di differenza percentuale approssimata: un valore di 0.30 indica un premio salariale dei senior pari a circa il 35% ($e^{0.30} - 1$).
+
+Come misura secondaria, si utilizza il premio percentuale diretto:
+
+$$
+\text{premio}_{it} = \frac{W_{it}^{50+} - W_{it}^{15-29}}{W_{it}^{15-29}} \times 100
+$$
+
+Entrambe le metriche vengono calcolate per le quattro misure retributive disponibili: media, D1, D5 (mediana) e D9. Questa disaggregazione consente di verificare se la dinamica del gap è omogenea lungo la distribuzione salariale o se si concentra in specifici segmenti.
+
+## Sigma-convergenza
+
+La sigma-convergenza misura la riduzione nel tempo della dispersione cross-sezionale del gap tra unità territoriali o settoriali. Si è in presenza di sigma-convergenza quando la variabilità del gap tra province (o settori) diminuisce nel tempo.
+
+La metrica utilizzata è il coefficiente di variazione (CV), calcolato per ciascun anno $t$ come:
+
+$$
+\sigma_t = \frac{\text{sd}(\text{gap}_{it})}{\overline{\text{gap}}_t}
+$$
+
+dove $\text{sd}(\text{gap}_{it})$ è la deviazione standard cross-sezionale dei gap e $\overline{\text{gap}}_t$ la media cross-sezionale. Un andamento decrescente di $\sigma_t$ indica sigma-convergenza: le unità territoriali (o settoriali) diventano più simili tra loro nel differenziale generazionale. La normalizzazione per la media rende il CV comparabile nel tempo anche in presenza di variazioni nel livello medio del gap.
+
+## Beta-convergenza
+
+La beta-convergenza verifica se le unità con gap iniziale più elevato mostrano una riduzione più rapida nel tempo. Si stima la regressione cross-sezionale:
+
+$$
+\Delta \text{gap}_i = \alpha + \beta \cdot \text{gap}_{i,2014} + \varepsilon_i
+$$
+
+dove $\Delta \text{gap}_i = \text{gap}_{i,2022} - \text{gap}_{i,2014}$ è la variazione del gap nell'intero periodo e $\text{gap}_{i,2014}$ il livello iniziale. Un coefficiente $\beta < 0$ statisticamente significativo indica beta-convergenza: le unità con gap iniziale più ampio hanno registrato riduzioni più consistenti.
+
+La specificazione condizionale aggiunge variabili dummy per macro-ripartizione geografica:
+
+$$
+\Delta \text{gap}_i = \alpha + \beta \cdot \text{gap}_{i,2014} + \sum_{r=1}^{4} \gamma_r D_{ir} + \varepsilon_i
+$$
+
+dove $D_{ir}$ è la dummy per la ripartizione $r$. Questa specificazione consente di distinguere la convergenza assoluta (tutte le province convergono verso lo stesso livello) dalla convergenza condizionale (convergenza verso livelli diversi per ciascuna macro-area).
+
+Gli errori standard sono calcolati con la correzione di White per l'eteroschedasticità (HC1), tramite il pacchetto `sandwich`. La scelta di un approccio cross-sezionale anziché panel dinamico è motivata dalla brevità della dimensione temporale ($T = 9$), che rende problematica la stima di modelli con variabile dipendente ritardata.
+
+Quando il coefficiente $\beta$ è significativo, la velocità di convergenza implicita e il tempo di dimezzamento si calcolano come:
+
+$$
+\lambda = -\frac{\ln(1 + \beta)}{T}, \qquad t_{1/2} = \frac{\ln 2}{\lambda}
+$$
+
+## Panel a effetti fissi
+
+Per isolare la traiettoria temporale del gap al netto dell'eterogeneità territoriale non osservata, si stima un modello panel a effetti fissi bidirezionali:
+
+$$
+\text{gap}_{it} = \alpha_i + \delta_t + \varepsilon_{it}
+$$
+
+dove $\alpha_i$ cattura l'effetto fisso provinciale e $\delta_t$ l'effetto fisso temporale. I coefficienti $\delta_t$ forniscono la dinamica nazionale del gap una volta rimossa la variabilità persistente tra province. Questo approccio è utile per distinguere la componente temporale comune da quella territoriale idiosincratica.
+
+## Decomposizione shift-share
+
+La variazione del gap nazionale tra il periodo iniziale e quello finale viene decomposta in tre componenti secondo lo schema shift-share:
+
+$$
+\Delta \overline{\text{gap}} = \underbrace{\sum_j s_{j,0} \cdot \Delta \text{gap}_j}_{\text{within}} + \underbrace{\sum_j \text{gap}_{j,0} \cdot \Delta s_j}_{\text{between}} + \underbrace{\sum_j \Delta \text{gap}_j \cdot \Delta s_j}_{\text{interaction}}
+$$
+
+dove $j$ indica il gruppo (macro-ripartizione o settore NACE), $s_{j,t}$ è la quota occupazionale del gruppo $j$ al tempo $t$, $\text{gap}_{j,t}$ il gap del gruppo e $\Delta$ l'operatore differenza tra periodo finale e iniziale.
+
+La componente **within** misura il contributo delle variazioni del gap all'interno di ciascun gruppo, a quote occupazionali costanti. La componente **between** cattura l'effetto della riallocazione dell'occupazione tra gruppi, a gap costanti. La componente di **interazione** riflette la covarianza tra le due variazioni. La decomposizione è applicata separatamente alla dimensione geografica (5 macro-ripartizioni) e a quella settoriale (sezioni NACE).
+
+## Analisi congiunta
+
+Per quantificare il peso relativo della dimensione geografica e settoriale nella determinazione del gap, si stima un'analisi della varianza (ANOVA) di tipo II sul dataset multidimensionale RACLI_1:
+
+$$
+\text{gap}_{ijk} = \mu + \alpha_i^{\text{geo}} + \beta_j^{\text{sett}} + (\alpha\beta)_{ij} + \varepsilon_{ijk}
+$$
+
+La decomposizione della somma dei quadrati consente di attribuire quote di varianza a ciascun fattore e alla loro interazione, fornendo un quadro sintetico del peso relativo delle due dimensioni strutturali.
+
+\newpage
+
+# Il gap salariale generazionale
+
+Questa sezione presenta le evidenze descrittive sul differenziale retributivo tra giovani e senior a livello nazionale e territoriale, documentando la sua entità, la sua evoluzione temporale e le sue caratteristiche distribuzionali.
+
+## Gap nazionale
+
+```{r tab-gap-nazionale}
+gap_naz_dt <- as.data.table(gap_naz)
+tab_naz <- gap_naz_dt[anno %in% c(2014, 2018, 2022), .(
+  Anno = anno,
+  `W 15-29 (D5)` = round(salario_mediano_young, 2),
+  `W 50+ (D5)` = round(salario_mediano_old, 2),
+  `Gap log (D5)` = round(log_gap_salario_mediano, 3),
+  `Gap % (D5)` = round(pct_gap_salario_mediano, 1),
+  `Gap log (D1)` = round(log_gap_D1, 3),
+  `Gap log (D9)` = round(log_gap_D9, 3)
+)]
+
+if (nrow(tab_naz) > 0) {
+  kbl(tab_naz,
+      caption = "Gap salariale generazionale a livello nazionale (anni selezionati). Retribuzioni orarie lorde in EUR.",
+      booktabs = TRUE,
+      align = "rrrrrr") %>%
+    kable_styling(latex_options = c("hold_position", "striped"),
+                  font_size = 9)
+}
+```
+
+La Tabella 1 riporta il gap salariale generazionale per le principali misure retributive negli anni 2014, 2018 e 2022. Il gap è espresso in differenze logaritmiche, interpretabili come differenze percentuali approssimate.
+
+```{r fig-gap-nazionale, fig.cap="Evoluzione del gap salariale generazionale a livello nazionale (2014-2022). La linea rappresenta la differenza logaritmica tra retribuzione mediana dei lavoratori 50+ e dei lavoratori 15-29."}
+knitr::include_graphics("../output/racli/grafici/eta_01_gap_nazionale_tempo.png")
+```
+
+La Figura 1 mostra l'evoluzione del gap nazionale nel periodo di osservazione. L'andamento consente di identificare la direzione prevalente del differenziale: un trend decrescente indica una riduzione del premio salariale per anzianità, mentre un trend crescente segnala un ampliamento della distanza retributiva tra generazioni.
+
+## Gap lungo la distribuzione
+
+```{r fig-gap-quantili, fig.cap="Gap salariale generazionale per quantile della distribuzione retributiva (D1, D5, D9). La disaggregazione per quantile evidenzia se la dinamica del gap è omogenea lungo l'intera distribuzione salariale."}
+knitr::include_graphics("../output/racli/grafici/eta_07_gap_per_decile.png")
+```
+
+La Figura 2 disaggrega il gap per quantile della distribuzione retributiva. Questa analisi è rilevante perché la struttura del gap può differire in modo sostanziale tra la coda bassa (D1), il centro (D5) e la coda alta (D9) della distribuzione. Un gap più ampio al D9 rispetto al D1 indica che il premio salariale per anzianità è maggiore per le posizioni ad alta retribuzione, possibilmente riflettendo differenziali di carriera e di accesso a ruoli dirigenziali. Al contrario, un gap più ampio al D1 segnalerebbe che i lavoratori giovani nelle posizioni meno retribuite sono particolarmente penalizzati rispetto ai colleghi più anziani.
+
+## Eterogeneità territoriale
+
+```{r fig-gap-ripartizioni, fig.cap="Gap salariale generazionale per macro-ripartizione geografica (2014-2022). Le differenze tra aree riflettono la diversa composizione settoriale e contrattuale dell'occupazione."}
+knitr::include_graphics("../output/racli/grafici/eta_02_gap_ripartizioni_tempo.png")
+```
+
+La Figura 3 mostra l'evoluzione del gap per macro-ripartizione. Le differenze territoriali nel gap generazionale riflettono molteplici fattori: la composizione settoriale dell'occupazione, la diffusione di contratti atipici tra i giovani, il livello retributivo di base e la struttura demografica della forza lavoro. Il confronto tra aree fornisce un primo elemento per distinguere tra dinamiche nazionali comuni e specificità territoriali.
+
+\newpage
+
+# Convergenza territoriale
+
+L'analisi di convergenza territoriale verifica se le province italiane stanno diventando più simili tra loro nel differenziale retributivo generazionale (sigma-convergenza) e se le province con gap iniziale più elevato mostrano una riduzione più rapida (beta-convergenza).
+
+## Sigma-convergenza
+
+```{r fig-sigma-terr, fig.cap="Sigma-convergenza territoriale del gap generazionale: coefficiente di variazione cross-provinciale per anno. Un andamento decrescente indica che le province stanno convergendo verso livelli simili di gap."}
+knitr::include_graphics("../output/racli/grafici/eta_03_sigma_convergenza_geo.png")
+```
+
+```{r tab-sigma-terr}
+# sigma$province e' la tabella di sigma-convergenza per province
+sigma_terr <- sigma$province[anno %in% c(2014, 2022)]
+
+if (nrow(sigma_terr) > 0) {
+  kbl(sigma_terr,
+      caption = "Sigma-convergenza territoriale: valori iniziale e finale del CV",
+      booktabs = TRUE,
+      digits = 3) %>%
+    kable_styling(latex_options = c("hold_position", "striped"),
+                  font_size = 9)
+}
+```
+
+La Figura 4 riporta l'andamento del coefficiente di variazione del gap tra province nel periodo di osservazione. Un CV decrescente nel tempo indica che la dispersione cross-provinciale del differenziale generazionale si sta riducendo: le province tendono a convergere verso livelli simili di gap tra giovani e senior. La Tabella 2 sintetizza i valori del CV per gli anni estremi del campione.
+
+L'interpretazione della sigma-convergenza richiede cautela. Una riduzione del CV può derivare sia da una convergenza genuina (le province con gap elevato lo riducono più velocemente) sia da un aumento del livello medio del gap che meccanicamente riduce il rapporto deviazione standard/media. Per questo motivo, l'analisi di sigma-convergenza è complementata dalla beta-convergenza, che testa direttamente il meccanismo di catching-up.
+
+## Beta-convergenza
+
+```{r fig-beta-terr, fig.cap="Beta-convergenza territoriale: scatter plot della variazione del gap 2014-2022 rispetto al livello iniziale. Ogni punto rappresenta una provincia. La pendenza negativa indica convergenza."}
+knitr::include_graphics("../output/racli/grafici/eta_05_beta_convergenza_province.png")
+```
+
+```{r tab-beta-terr}
+# beta e' una lista di lm con $coef (coeftest matrix); estrarre tramite as.data.frame
+mat_uncond <- as.data.frame(unclass(beta$province_uncond$coef))
+mat_uncond$parametro <- rownames(mat_uncond)
+mat_uncond$specificazione <- "Incondizionata"
+mat_cond <- as.data.frame(unclass(beta$province_cond$coef))
+mat_cond$parametro <- rownames(mat_cond)
+mat_cond$specificazione <- "Condizionale (ripartizioni)"
+beta_terr <- rbind(mat_uncond, mat_cond)
+beta_terr <- beta_terr[, c("specificazione", "parametro", "Estimate", "Std. Error", "t value", "Pr(>|t|)")]
+rownames(beta_terr) <- NULL
+
+kbl(beta_terr,
+    caption = "Risultati della regressione di beta-convergenza territoriale (errori standard robusti HC1)",
+    booktabs = TRUE,
+    digits = 4) %>%
+  kable_styling(latex_options = c("hold_position", "striped"),
+                font_size = 9)
+```
+
+La Figura 5 rappresenta la relazione tra livello iniziale del gap (asse orizzontale) e sua variazione nel periodo 2014-2022 (asse verticale) per ciascuna provincia. Un coefficiente $\beta$ negativo e statisticamente significativo indica beta-convergenza: le province che partivano da gap più ampi hanno registrato riduzioni maggiori.
+
+La Tabella 3 riporta i risultati della regressione sia nella specificazione incondizionata sia in quella condizionale alle macro-ripartizioni. Il confronto tra le due specificazioni consente di distinguere la convergenza assoluta (verso un unico stato stazionario) dalla convergenza condizionale (verso stati stazionari diversi per area geografica). Se il coefficiente $\beta$ risulta significativo solo nella specificazione condizionale, ciò suggerisce che la convergenza opera all'interno delle macro-aree ma non tra di esse.
+
+## Eterogeneità provinciale
+
+```{r fig-topbottom-prov, fig.cap="Province con gap generazionale più ampio e più contenuto nel 2022. Il confronto evidenzia la persistenza di differenze territoriali significative."}
+knitr::include_graphics("../output/racli/grafici/eta_11_top_bottom_gap_province.png")
+```
+
+La Figura 6 identifica le province ai due estremi della distribuzione del gap nel 2022. L'ampiezza della differenza tra province con gap massimo e minimo fornisce una misura dell'eterogeneità territoriale residua al termine del periodo di osservazione.
+
+```{r fig-mappa-2022, fig.cap="Mappa del gap salariale generazionale per provincia nel 2022. Le tonalità più intense indicano un differenziale maggiore tra retribuzioni dei lavoratori 50+ e dei lavoratori 15-29."}
+knitr::include_graphics("../output/racli/grafici/eta_14_mappa_gap_province.png")
+```
+
+```{r fig-mappa-variazione, fig.cap="Mappa della variazione del gap salariale generazionale 2014-2022 per provincia. Valori negativi (tonalità fredde) indicano una riduzione del gap, valori positivi (tonalità calde) un ampliamento."}
+knitr::include_graphics("../output/racli/grafici/eta_15_mappa_variazione_gap.png")
+```
+
+Le Figure 7 e 8 forniscono una rappresentazione cartografica del gap nel 2022 e della sua variazione nel periodo di osservazione. La lettura congiunta delle due mappe consente di identificare le province che combinano un livello di gap elevato con un trend di ampliamento, configurando situazioni di particolare svantaggio per i lavoratori giovani, e quelle dove il gap si sta riducendo in modo più marcato.
+
+\newpage
+
+# Convergenza settoriale
+
+L'analisi di convergenza è replicata sulla dimensione settoriale, utilizzando le sezioni NACE come unità di osservazione. L'obiettivo è verificare se i settori economici mostrano dinamiche convergenti nel gap generazionale e se la convergenza settoriale è più o meno pronunciata di quella territoriale.
+
+## Sigma-convergenza settoriale
+
+```{r fig-sigma-sett, fig.cap="Sigma-convergenza settoriale del gap generazionale: coefficiente di variazione cross-settoriale per anno. Il confronto con il CV territoriale (Figura 4) consente di valutare quale dimensione presenta maggiore convergenza."}
+knitr::include_graphics("../output/racli/grafici/eta_04_sigma_convergenza_settori.png")
+```
+
+La Figura 9 mostra l'evoluzione del CV del gap tra settori NACE. Il confronto con la Figura 4 consente di valutare se la convergenza è più pronunciata nella dimensione territoriale o in quella settoriale. Una sigma-convergenza settoriale più lenta rispetto a quella territoriale indicherebbe che le differenze nel gap generazionale sono maggiormente radicate nella struttura produttiva che nella localizzazione geografica.
+
+## Beta-convergenza settoriale
+
+```{r fig-beta-sett, fig.cap="Beta-convergenza settoriale: scatter plot della variazione del gap 2014-2022 rispetto al livello iniziale per sezione NACE. Le etichette identificano i singoli settori."}
+knitr::include_graphics("../output/racli/grafici/eta_06_beta_convergenza_settori.png")
+```
+
+```{r tab-beta-sett}
+# beta$settori_uncond$coef e' una matrice coeftest; estrarre tramite as.data.frame
+beta_sett <- as.data.frame(unclass(beta$settori_uncond$coef))
+beta_sett$parametro <- rownames(beta_sett)
+beta_sett <- beta_sett[, c("parametro", "Estimate", "Std. Error", "t value", "Pr(>|t|)")]
+rownames(beta_sett) <- NULL
+
+kbl(beta_sett,
+    caption = "Risultati della regressione di beta-convergenza settoriale (errori standard robusti HC1)",
+    booktabs = TRUE,
+    digits = 4) %>%
+  kable_styling(latex_options = c("hold_position", "striped"),
+                font_size = 9)
+```
+
+La Figura 10 e la Tabella 4 presentano i risultati della beta-convergenza settoriale. A differenza dell'analisi territoriale, la specificazione settoriale non prevede una variante condizionale, data l'assenza di un raggruppamento naturale dei settori NACE in macro-categorie omogenee.
+
+L'identificazione dei settori outlier, ovvero quelli che deviano significativamente dalla relazione di convergenza, è rilevante per individuare comparti dove dinamiche specifiche (cambiamenti tecnologici, regolamentazione, shock di domanda) hanno alterato la struttura dei differenziali generazionali in modo atipico.
+
+## Dinamiche settoriali
+
+```{r fig-tutti-settori, fig.cap="Evoluzione del gap generazionale per tutte le 17 sezioni NACE (2014-2022). Ciascun settore è identificato da colore e forma del punto. L'ordinamento in legenda segue il gap medio decrescente."}
+knitr::include_graphics("../output/racli/grafici/eta_12_evoluzione_gap_settori_top.png")
+```
+
+La Figura 11 presenta l'evoluzione del gap generazionale per tutte le 17 sezioni NACE nel periodo 2014-2022. I settori con gap più elevato sono quelli ad alta intensità di capitale umano e con strutture retributive fortemente legate all'anzianità: informazione e comunicazione (J), attività finanziarie (K) e attività estrattive (B). La convergenza è generalizzata — tutti i settori mostrano una riduzione del differenziale — ma con intensità eterogenea. I settori dei servizi alla persona (I, S, R) presentano gap più contenuti e variazioni più limitate, riflettendo strutture retributive già compresse alla base.
+
+\newpage
+
+# Decomposizione strutturale
+
+La decomposizione shift-share consente di scomporre la variazione del gap nazionale in componenti attribuibili a cambiamenti interni (within) ai raggruppamenti e a riallocazioni dell'occupazione tra di essi (between). Questa analisi è fondamentale per distinguere tra due meccanismi distinti: la variazione del gap all'interno di settori e territori a composizione costante, e l'effetto della riallocazione dell'occupazione verso settori o territori con gap diversi.
+
+## Componente geografica
+
+```{r fig-decomp-geo, fig.cap="Decomposizione shift-share della variazione del gap generazionale per componente geografica (macro-ripartizioni). Le barre rappresentano il contributo di ciascuna componente: within (variazione del gap a quota occupazionale costante), between (riallocazione dell'occupazione a gap costante) e interazione."}
+knitr::include_graphics("../output/racli/grafici/eta_08_decomposizione_geo.png")
+```
+
+```{r tab-decomp-geo}
+# decomp_geo$components contiene le componenti della decomposizione shift-share geografica
+decomp_geo_dt <- decomp_geo$components
+
+if (nrow(decomp_geo_dt) > 0) {
+  kbl(decomp_geo_dt,
+      caption = "Decomposizione shift-share geografica del gap generazionale: componenti within, between e interazione (valori assoluti e percentuali)",
+      booktabs = TRUE,
+      digits = 4) %>%
+    kable_styling(latex_options = c("hold_position", "striped"),
+                  font_size = 9)
+}
+```
+
+La Figura 12 e la Tabella 5 riportano i risultati della decomposizione shift-share applicata alla dimensione geografica. La componente within misura quanto del cambiamento nel gap nazionale è attribuibile a variazioni del differenziale generazionale all'interno delle singole macro-ripartizioni, mantenendo costante la quota occupazionale di ciascuna area. La componente between cattura invece l'effetto della riallocazione dell'occupazione tra aree con gap diversi.
+
+Una dominanza della componente within indica che i cambiamenti nel gap generazionale sono prevalentemente dovuti a fattori che operano all'interno delle aree geografiche, come le dinamiche contrattuali, la variazione nella composizione per qualifica e la crescita retributiva differenziata per età. Una componente between rilevante segnalerebbe invece che lo spostamento dell'occupazione verso aree con gap diversi contribuisce in modo significativo alla variazione nazionale.
+
+## Componente settoriale
+
+```{r fig-decomp-sett, fig.cap="Decomposizione shift-share della variazione del gap generazionale per componente settoriale (sezioni NACE). Il confronto con la decomposizione geografica (Figura 12) consente di valutare il peso relativo delle due dimensioni strutturali."}
+knitr::include_graphics("../output/racli/grafici/eta_09_decomposizione_settori.png")
+```
+
+La Figura 13 replica la decomposizione sulla dimensione settoriale. Il confronto con la Figura 12 consente di stabilire se la variazione del gap nazionale è maggiormente guidata da dinamiche intra-settoriali o intra-territoriali, e se la riallocazione dell'occupazione tra settori (cambiamento strutturale dell'economia) ha contribuito in modo rilevante alla variazione del differenziale generazionale.
+
+## Interazione geografia-settore
+
+```{r fig-heatmap, fig.cap="Heatmap del gap generazionale per combinazione di macro-ripartizione e sezione NACE. Le celle più scure indicano gap più elevati. La matrice consente di identificare le combinazioni territorio-settore più critiche."}
+knitr::include_graphics("../output/racli/grafici/eta_10_heatmap_gap_settore_territorio.png")
+```
+
+```{r tab-anova}
+# analisi_congiunta$anova contiene la tabella ANOVA con fattore, ss, pct_varianza, p_value
+anova_dt <- analisi_congiunta$anova
+
+if (nrow(anova_dt) > 0) {
+  kbl(anova_dt,
+      caption = "Analisi della varianza (ANOVA tipo II) del gap generazionale: quota di varianza spiegata da geografia, settore e interazione",
+      booktabs = TRUE,
+      digits = 3) %>%
+    kable_styling(latex_options = c("hold_position", "striped"),
+                  font_size = 9)
+}
+```
+
+La Figura 14 rappresenta il gap generazionale per ciascuna combinazione di macro-ripartizione e sezione NACE, consentendo di identificare le celle della matrice territorio-settore dove il differenziale è particolarmente ampio o contenuto. La Tabella 6 riporta i risultati dell'ANOVA di tipo II, che decompone la varianza del gap nelle quote attribuibili alla dimensione geografica, a quella settoriale e alla loro interazione.
+
+Il risultato di questa analisi è rilevante per le politiche: se la quota di varianza attribuibile al settore domina quella territoriale, gli interventi più efficaci per ridurre il gap generazionale dovrebbero essere di natura settoriale (contrattazione collettiva, politiche industriali). Se invece la componente geografica prevale, le politiche territoriali (investimenti infrastrutturali, incentivi alla localizzazione) avrebbero un impatto maggiore. Una componente di interazione significativa indicherebbe che i due fattori operano in modo non additivo, rendendo necessario un approccio integrato.
+
+\newpage
+
+# Effetti fissi di periodo
+
+L'analisi panel a effetti fissi bidirezionali (provincia e anno) consente di isolare la traiettoria temporale del gap al netto dell'eterogeneità permanente tra province. I coefficienti degli effetti fissi temporali rappresentano la componente del gap comune a tutte le province, ovvero la dinamica nazionale depurata dalle specificità territoriali.
+
+```{r fig-year-fe, fig.cap="Effetti fissi temporali dal modello panel bidirezionale. I punti rappresentano i coefficienti stimati, le barre gli intervalli di confidenza al 95%. L'anno di riferimento (2014) è normalizzato a zero. Un andamento decrescente indica una riduzione del gap nazionale al netto delle differenze tra province."}
+knitr::include_graphics("../output/racli/grafici/eta_13_panel_fe_coefficients.png")
+```
+
+La Figura 15 mostra i coefficienti degli effetti fissi temporali. L'anno base (2014) è normalizzato a zero, per cui ciascun coefficiente misura la variazione del gap rispetto al livello iniziale, al netto delle differenze persistenti tra province. La Tabella 7 riporta i valori numerici.
+
+```{r tab-year-fe}
+# model_panel$year_fe e' la data.table con anno e coef degli effetti fissi temporali
+panel_dt <- copy(model_panel$year_fe)
+
+if (nrow(panel_dt) > 0) {
+  # Aggiungi riga anno base
+  panel_dt <- rbindlist(list(
+    data.table(anno = 2014L, coef = 0),
+    panel_dt
+  ))
+  setnames(panel_dt, c("Anno", "Coefficiente"))
+  kbl(panel_dt,
+      caption = "Effetti fissi temporali del gap generazionale (anno base: 2014 = 0).",
+      booktabs = TRUE,
+      digits = 4,
+      align = "rc") %>%
+    kable_styling(latex_options = c("HOLD_position", "striped"),
+                  font_size = 9,
+                  full_width = FALSE)
+}
+```
+
+I coefficienti mostrano una riduzione progressiva del gap generazionale nel periodo. La contrazione è modesta nei primi anni (-0,003 nel 2015, -0,005 nel 2016) e accelera nel triennio 2017-2019, raggiungendo -0,021 punti logaritmici rispetto al 2014. Nel 2020 si registra un parziale arretramento (-0,018), con un lieve ampliamento del gap rispetto al 2019: la pandemia ha avuto un impatto asimmetrico sulle classi di età, penalizzando in misura relativamente maggiore le retribuzioni dei lavoratori più giovani, concentrati nei settori dei servizi più colpiti dalle restrizioni. La ripresa post-pandemica non ha semplicemente ripristinato le condizioni del 2019: dopo una fase di stallo nel 2021 (-0,017), il 2022 segna la contrazione più ampia dell'intero periodo (-0,028), indicando che la convergenza generazionale ha ripreso e superato il ritmo pre-pandemico.
+
+\newpage
+
+# Convergenza al ribasso?
+
+I risultati sin qui presentati documentano una convergenza del gap generazionale in termini nominali. Questa evidenza richiede un'interpretazione cautela: la riduzione del differenziale potrebbe riflettere non un miglioramento delle condizioni retributive dei giovani, ma una compressione generalizzata dei salari reali che ha colpito in misura più severa i lavoratori senior. In altri termini, la convergenza potrebbe essere "al ribasso".
+
+Per verificare questa ipotesi, si deflazionano le retribuzioni orarie nominali utilizzando l'indice dei prezzi al consumo armonizzato (IPCA) con base 2015, calcolato a partire dai dati trimestrali ISTAT già impiegati nel modello VECM.
+
+```{r load-conv-reale}
+conv_reale_data <- readRDS("../output/racli/convergenza_reale_eta.rds")
+```
+
+```{r tab-salari-reali}
+cr <- as.data.table(conv_reale_data$conv_reale)
+tab_reale <- cr[anno %in% c(2014, 2018, 2022), .(
+  Anno = anno,
+  `W 15-29 nom.` = round(salario_mediano_young, 2),
+  `W 50+ nom.` = round(salario_mediano_old, 2),
+  Deflatore = round(deflatore, 3),
+  `W 15-29 reale` = round(salario_mediano_young_reale, 2),
+  `W 50+ reale` = round(salario_mediano_old_reale, 2),
+  `Gap log` = round(log_gap_salario_mediano, 3)
+)]
+
+kbl(tab_reale,
+    caption = "Retribuzioni orarie mediane nominali e reali (EUR 2015). Il gap logaritmico è invariante alla deflazione.",
+    booktabs = TRUE,
+    align = "rrrrrrr") %>%
+  kable_styling(latex_options = c("HOLD_position", "striped"),
+                font_size = 9)
+```
+
+Un risultato fondamentale emerge dalla Tabella: il gap logaritmico è identico in termini nominali e reali. Questo è una proprietà algebrica della misura utilizzata: poiché $\ln(W^{old}/P) - \ln(W^{young}/P) = \ln(W^{old}) - \ln(W^{young})$, il deflatore si annulla nella differenza. La convergenza del gap in punti logaritmici è dunque un fatto reale, non un artefatto della dinamica dei prezzi.
+
+Tuttavia, il contesto in cui questa convergenza si realizza è rilevante. La Figura seguente confronta i livelli retributivi nominali e reali per le due classi di età.
+
+```{r fig-salari-reali, fig.cap="Retribuzioni orarie mediane nominali (linea continua) e reali in EUR 2015 (linea tratteggiata) per classe di età. La forbice tra linee continue e tratteggiate evidenzia la perdita di potere d'acquisto."}
+knitr::include_graphics("../output/racli/grafici/eta_16_salari_reali_tempo.png")
+```
+
+```{r fig-crescita, fig.cap="Crescita salariale cumulata 2014-2022: confronto tra variazione nominale e reale per classe di età. Entrambi i gruppi registrano una perdita di potere d'acquisto."}
+knitr::include_graphics("../output/racli/grafici/eta_17_crescita_cumulata.png")
+```
+
+```{r crescita-numeri, results='asis'}
+cr_dt <- as.data.table(conv_reale_data$crescita)
+infl <- conv_reale_data$inflazione_cumulata
+```
+
+Nel periodo 2014-2022 l'inflazione cumulata IPCA è stata del `r sprintf("%.1f", conv_reale_data$inflazione_cumulata)`%, concentrata prevalentemente nel biennio 2021-2022. Le retribuzioni mediane dei giovani sono cresciute del 7,6% in termini nominali, corrispondenti a una contrazione del 6,5% in termini reali. Le retribuzioni dei senior sono cresciute del 3,7% nominale, con una perdita reale del 9,9%.
+
+La convergenza generazionale è dunque genuina nel senso statistico del termine: il differenziale relativo si riduce indipendentemente dall'unità di misura. Ma il contesto è quello di una stagnazione salariale generalizzata, in cui tutti i lavoratori hanno perso potere d'acquisto e i lavoratori senior ne hanno perso di più. La convergenza avviene perché i salari dei senior ristagnano più di quelli dei giovani, non perché i salari dei giovani migliorino in modo sostanziale.
+
+Questa distinzione ha implicazioni rilevanti per le politiche: una convergenza al ribasso non indica un mercato del lavoro che sta riequilibrando le opportunità generazionali, ma piuttosto un mercato che comprime verso il basso l'intera struttura retributiva, con una erosione più rapida nelle fasce di reddito più elevate (tipicamente occupate dai lavoratori con maggiore anzianità).
+
+\newpage
+
+# Verifiche di robustezza
+
+Per valutare la solidità dei risultati principali, si replicano le analisi sotto specificazioni alternative. Le verifiche riguardano quattro aspetti: il gruppo di riferimento anagrafico, il quantile della distribuzione retributiva, l'esclusione dell'anno pandemico e la coerenza tra misure di convergenza.
+
+## Gruppo di riferimento alternativo
+
+La prima verifica sostituisce il gruppo di riferimento 50+ con la classe intermedia 30-49. Se i risultati di convergenza si confermano anche con questo confronto, l'evidenza è più robusta, poiché indica che il fenomeno non è specifico del confronto con i lavoratori prossimi al pensionamento ma riguarda più in generale il rapporto tra retribuzioni dei giovani e del resto della forza lavoro.
+
+## Gap per quantile
+
+La seconda verifica esamina separatamente la convergenza al D1, D5 e D9. Un risultato di convergenza limitato a un solo quantile indicherebbe che il fenomeno è circoscritto a un segmento specifico della distribuzione retributiva e non generalizzabile all'intera struttura salariale.
+
+## Esclusione dell'anno 2020
+
+La terza verifica esclude il 2020 dall'analisi per valutare l'impatto della pandemia di COVID-19 sui risultati. La crisi pandemica ha prodotto effetti asimmetrici sulle retribuzioni per classe di età, legati alla diversa esposizione settoriale e alla diversa incidenza della cassa integrazione. Se i risultati cambiano in modo sostanziale escludendo il 2020, l'evidenza di convergenza o divergenza è in parte attribuibile a un evento eccezionale anziché a un trend strutturale.
+
+## Sintesi delle verifiche
+
+```{r tab-robustezza}
+# robustezza e' una lista con $sigma_no_covid (CV senza 2020), $beta_no_covid (lm con $coef),
+# $gap_riferimento_30_49 (gap vs 30-49), $gap_per_decile (gap D1/D5/D9)
+# Tabella di sintesi: confronto beta-convergenza spec. principale vs. no-covid
+beta_main_coef <- as.data.frame(unclass(beta$province_uncond$coef))
+beta_nocov_coef <- as.data.frame(unclass(robustezza$beta_no_covid$coef))
+
+rob_dt <- data.table(
+  specificazione = c("Principale (2014-2022)", "Escl. anno 2020"),
+  beta           = c(beta_main_coef["gap_initial", "Estimate"],
+                     beta_nocov_coef["gap_initial", "Estimate"]),
+  std_error      = c(beta_main_coef["gap_initial", "Std. Error"],
+                     beta_nocov_coef["gap_initial", "Std. Error"]),
+  p_value        = c(beta_main_coef["gap_initial", "Pr(>|t|)"],
+                     beta_nocov_coef["gap_initial", "Pr(>|t|)"])
+)
+
+kbl(rob_dt,
+    caption = "Sintesi delle verifiche di robustezza: confronto tra specificazione principale e alternativa senza anno 2020",
+    booktabs = TRUE,
+    digits = 3) %>%
+  kable_styling(latex_options = c("hold_position", "striped"),
+                font_size = 9)
+```
+
+La Tabella 8 sintetizza i risultati delle verifiche di robustezza, confrontando il segno e la significatività del coefficiente di beta-convergenza nelle diverse specificazioni. La coerenza dei risultati attraverso le verifiche fornisce una misura della solidità delle conclusioni principali.
+
+\newpage
+
+# Conclusioni
+
+Questo rapporto ha analizzato il differenziale retributivo tra lavoratori giovani (15-29) e senior (50+) in Italia nel periodo 2014-2022, utilizzando i dati amministrativi RACLI dell'ISTAT. L'analisi ha affrontato quattro domande di ricerca, i cui risultati si sintetizzano di seguito.
+
+**Dimensione e dinamica del gap.** Il differenziale retributivo generazionale in Italia è significativo: nel 2022 i lavoratori 50+ percepiscono una retribuzione oraria mediana superiore del 22,4% rispetto ai lavoratori 15-29 (0,202 punti logaritmici). Nel periodo di osservazione il gap si è ridotto di 0,037 punti logaritmici rispetto al valore iniziale di 0,239 nel 2014. La dinamica non è omogenea lungo la distribuzione salariale: la contrazione è contenuta al primo decile (-0,016) e marcata al nono decile (-0,086), indicando che la convergenza è trainata prevalentemente dal segmento medio-alto delle retribuzioni.
+
+**Convergenza territoriale.** L'analisi di sigma-convergenza indica una riduzione della dispersione cross-provinciale del gap (CV da 0,276 a 0,249). La beta-convergenza conferma un processo di catching-up: le province con differenziale iniziale più ampio mostrano riduzioni più rapide (β = -0,306, p < 0,001, R² = 0,38). La convergenza è sia assoluta sia condizionale (β condizionato = -0,341), suggerendo che il catching-up non è interamente spiegato dalla diversa appartenenza alle macro-ripartizioni geografiche.
+
+**Convergenza settoriale.** Sul piano settoriale, la convergenza è confermata (β = -0,222, p = 0,006, R² = 0,42). I settori con gap iniziale più elevato — informazione e comunicazione (J), trasporti (H), attività estrattive (B) — hanno registrato le riduzioni più ampie, superiori a 0,13 punti logaritmici.
+
+**Componenti strutturali.** La decomposizione shift-share indica che la variazione del gap nazionale è interamente guidata dalla componente within, sia nella dimensione geografica sia in quella settoriale. In assenza di pesi occupazionali nei dati RACLI, la componente between risulta nulla per costruzione. L'analisi congiunta della varianza attribuisce l'87,6% della variabilità del gap al settore economico, l'1,6% alla geografia, il 6,8% alla loro interazione e il 3,6% al residuo (R² complessivo = 0,96).
+
+## Implicazioni
+
+La riduzione del gap generazionale suggerisce che il mercato del lavoro italiano ha parzialmente riequilibrato le condizioni retributive tra coorti nel periodo 2014-2022, sebbene a un ritmo moderato: il tasso di convergenza annuo stimato è del 3,8%, corrispondente a un tempo di dimezzamento del differenziale di circa 18 anni. A questo ritmo, il gap mediano attuale (22,4%) raggiungerebbe l'11% intorno al 2040.
+
+La dominanza della componente settoriale (87,6% della varianza) implica che gli interventi più efficaci per ridurre il gap generazionale dovrebbero concentrarsi sulla dinamica salariale interna ai settori, in particolare attraverso la contrattazione collettiva e le politiche di progressione di carriera. La composizione settoriale dell'occupazione giovanile è il canale principale attraverso cui il differenziale si materializza: politiche che favoriscano l'accesso dei giovani ai settori ad alta retribuzione (finanza, ICT, servizi professionali) avrebbero un effetto strutturale sulla riduzione del gap.
+
+La modesta rilevanza della componente geografica (1,6%) suggerisce che le politiche territoriali avrebbero un impatto limitato sul gap generazionale, che è un fenomeno prevalentemente settoriale e non territoriale.
+
+## Limiti
+
+L'analisi presenta limiti che è opportuno esplicitare. In primo luogo, il periodo di osservazione (9 anni) è relativamente breve per trarre conclusioni definitive su processi di convergenza, che nella letteratura macroeconomica richiedono tipicamente orizzonti temporali più estesi. In secondo luogo, i dati RACLI non includono pesi per l'occupazione effettiva, per cui il gap è calcolato sulle retribuzioni medie senza ponderazione per la numerosità dei lavoratori in ciascuna classe di età. In terzo luogo, l'analisi utilizza dati aggregati per classe di età e non controlla per caratteristiche individuali (istruzione, qualifica, esperienza) che influenzano sia il livello retributivo sia la sua evoluzione. Infine, il gap misurato riflette congiuntamente effetti di età (posizione nel ciclo di vita), di coorte (generazione di nascita) e di periodo (condizioni macroeconomiche), che non è possibile separare con i dati disponibili.
+
+## Direzioni di ricerca
+
+Sviluppi futuri di questa analisi potrebbero beneficiare dell'integrazione con microdati longitudinali che consentano di distinguere gli effetti di età dagli effetti di coorte. L'estensione temporale del dataset, man mano che nuove annualità RACLI diventano disponibili, consentirà di consolidare le evidenze sulla convergenza. L'analisi potrebbe inoltre essere arricchita dalla considerazione delle ore lavorate e del tipo di contratto come variabili di condizionamento, per isolare il differenziale generazionale a parità di caratteristiche occupazionali.
+
+## Nota sul software
+
+Le analisi sono state condotte in R [@r_core]. La manipolazione dei dati utilizza data.table [@data_table_package], le visualizzazioni ggplot2 [@ggplot2_package]. I test di convergenza impiegano lmtest [@zeileis_lmtest] con errori standard robusti calcolati tramite sandwich [@sandwich_package]. L'indice di Gini è calcolato con ineq [@ineq_package]. Le cartografie utilizzano sf [@sf_package]. I dati provengono dal Registro Annuale sul Costo del Lavoro nelle Imprese dell'ISTAT [@istat_racli]. Il framework di convergenza sigma e beta segue la formulazione classica di @barro1992.
+
+\newpage
+
+# Riferimenti {-}

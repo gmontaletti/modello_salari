@@ -19,7 +19,20 @@
       "Bash(wc:*)",
       "mcp__r-btw__btw_tool_env_describe_data_frame",
       "Bash(R --slave -e:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git push:*)",
+      "Bash(pdfinfo:*)",
+      "Bash(while read f)",
+      "Bash(then echo \"$f\")",
+      "Bash(fi)",
+      "Bash(done)",
+      "mcp__r-btw__btw_tool_docs_package_help_topics",
+      "Bash(git mv:*)",
+      "Bash(git rm:*)",
+      "Bash(Rscript -e \"rmarkdown::render\\('reports/eta.Rmd'\\)\" 2>&1)",
+      "Bash(open:*)",
+      "Bash(Rscript -e \"rmarkdown::render\\(''''reports/eta.Rmd''''\\)\")",
+      "Bash(xargs cat:*)"
     ]
   }
 }
