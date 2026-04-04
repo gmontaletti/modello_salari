@@ -1,0 +1,160 @@
+---
+title: "Monitoraggio Salari Reali in Italia"
+subtitle: "Aggiornamento mensile"
+author: "Giampaolo Montaletti (ORCID: 0009-0002-5327-1122)"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+lang: it
+output:
+  pdf_document:
+    toc: false
+    number_sections: false
+    fig_caption: true
+    latex_engine: xelatex
+    keep_tex: false
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{float}
+  - \floatplacement{figure}{H}
+  - \renewcommand{\figurename}{Figura}
+  - \renewcommand{\tablename}{Tabella}
+  - \usepackage{geometry}
+  - \geometry{a4paper, margin=2cm}
+  - \pagenumbering{gobble}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE,
+  fig.align = "center", out.width = "100%"
+)
+
+library(data.table)
+library(ggplot2)
+library(scales)
+library(knitr)
+library(kableExtra)
+library(here)
+
+dt <- readRDS(here::here("output/salari_reali/serie_mensili.rds"))
+meta <- readRDS(here::here("output/salari_reali/metadata.rds"))
+
+col_palette <- c(
+  "Salario nominale" = "#0072B2",
+  "IPCA" = "#D55E00",
+  "Salario reale" = "#009E73"
+)
+```
+
+Ultimo dato disponibile: **`r meta$periodo_ultimo`**. Serie dal `r format(meta$data_primo, '%B %Y')` al `r meta$periodo_ultimo` (`r meta$n_mesi` mesi).
+
+```{r sintesi}
+tab_sintesi <- data.table(
+  Indicatore = c(
+    "Variazione salario reale (t/t-12)",
+    "Variazione salario nominale (t/t-12)",
+    "Inflazione IPCA (t/t-12)",
+    "Variazione cumulata reale dal 2015"
+  ),
+  Valore = c(
+    sprintf("%+.1f%%", meta$var_w_reale_yoy),
+    sprintf("%+.1f%%", meta$var_w_nom_yoy),
+    sprintf("%+.1f%%", meta$var_ipca_yoy),
+    sprintf("%+.1f%%", meta$cum_reale_2015)
+  )
+)
+
+kbl(tab_sintesi, booktabs = TRUE, align = "lr",
+    caption = paste0("Sintesi indicatori al ", meta$periodo_ultimo)) %>%
+  kable_styling(
+    latex_options = c("hold_position"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 10
+  ) %>%
+  column_spec(2, bold = TRUE)
+```
+
+```{r grafico-indici, fig.cap=paste0("Indici mensili base 2015=100. Ultimo dato: ", meta$periodo_ultimo, "."), fig.height=4, fig.width=8}
+dt_plot <- dt[year(data) >= 2015]
+dt_long <- melt(
+  dt_plot,
+  id.vars = "data",
+  measure.vars = c("w_nominale", "ipca", "w_reale"),
+  variable.name = "serie",
+  value.name = "indice"
+)
+dt_long[, serie := factor(serie,
+  levels = c("w_nominale", "ipca", "w_reale"),
+  labels = c("Salario nominale", "IPCA", "Salario reale")
+)]
+
+ggplot(dt_long, aes(x = data, y = indice, color = serie)) +
+  geom_line(linewidth = 0.7) +
+  geom_hline(yintercept = 100, linetype = "dashed", alpha = 0.4) +
+  scale_color_manual(values = col_palette) +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
+  scale_y_continuous(breaks = seq(90, 140, 5)) +
+  labs(x = NULL, y = "Indice (2015=100)", color = NULL) +
+  theme_minimal(base_size = 10) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+```
+
+```{r grafico-variazioni, fig.cap=paste0("Variazioni tendenziali anno su anno (ultimi 24 mesi)."), fig.height=3.5, fig.width=8}
+dt_var <- dt[data >= max(data) - 365 * 2 + 1 & !is.na(var_w_reale)]
+dt_var_long <- melt(
+  dt_var,
+  id.vars = "data",
+  measure.vars = c("var_w_nom", "var_ipca", "var_w_reale"),
+  variable.name = "serie",
+  value.name = "variazione"
+)
+dt_var_long[, serie := factor(serie,
+  levels = c("var_w_nom", "var_ipca", "var_w_reale"),
+  labels = c("Salario nominale", "IPCA", "Salario reale")
+)]
+
+ggplot(dt_var_long, aes(x = data, y = variazione, color = serie)) +
+  geom_line(linewidth = 0.7) +
+  geom_hline(yintercept = 0, linetype = "solid", alpha = 0.3) +
+  scale_color_manual(values = col_palette) +
+  scale_x_date(date_breaks = "3 months", date_labels = "%b\n%Y") +
+  scale_y_continuous(labels = function(x) paste0(x, "%")) +
+  labs(x = NULL, y = "Variazione % (t/t-12)", color = NULL) +
+  theme_minimal(base_size = 10) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+```
+
+\small
+
+```{r tabella-12mesi}
+tab <- dt[data >= max(data) - 365 + 1][order(data)]
+tab_display <- tab[, .(
+  Mese = format(data, "%b %Y"),
+  `W nom.` = sprintf("%.1f", w_nominale),
+  IPCA = sprintf("%.1f", ipca),
+  `W reale` = sprintf("%.1f", w_reale),
+  `Var. reale` = ifelse(is.na(var_w_reale), "---", sprintf("%+.1f%%", var_w_reale))
+)]
+
+kbl(tab_display, booktabs = TRUE, align = "lrrrr",
+    caption = "Ultimi 12 mesi: indici e variazioni tendenziali") %>%
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    font_size = 8,
+    full_width = TRUE
+  )
+```
+
+\normalsize
+
+---
+
+\footnotesize
+**Fonti e metodologia.** Indice IPCA (dataflow ISTAT 168\_756, indice generale, base 2015=100). Indice retribuzione contrattuale oraria (dataflow ISTAT 155\_358, economia totale, base dic. 2015=100). Salario reale = (indice retribuzione nominale / IPCA) $\times$ 100. Elaborazione: Giampaolo Montaletti.
+\normalsize
