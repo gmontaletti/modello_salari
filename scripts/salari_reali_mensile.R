@@ -142,12 +142,19 @@ coicop_col <- intersect(c("ECOICOP_2", "E_COICOP_REV_ISTAT"), names(ipca_raw))[
   1
 ]
 cat("  Colonna classificazione:", coicop_col, "(base", ipca_base, ")\n")
-ipca <- ipca_raw[
-  get(coicop_col) == "00" &
-    MEASURE == 4 &
-    REF_AREA == "IT",
+# Identifica il DATA_TYPE principale (serie più lunga)
+ipca_candidates <- ipca_raw[
+  get(coicop_col) == "00" & MEASURE == 4 & REF_AREA == "IT"
+]
+main_dtype <- ipca_candidates[, .N, by = DATA_TYPE][which.max(N), DATA_TYPE]
+cat("  DATA_TYPE principale:", main_dtype, "\n")
+
+ipca <- ipca_candidates[
+  DATA_TYPE == main_dtype,
   .(periodo = ObsDimension, ipca = as.numeric(ObsValue))
 ]
+# Rimuovi eventuali duplicati residui
+ipca <- unique(ipca, by = "periodo")
 
 # Ribasamento a 2015=100 se base è 2025
 if (ipca_base == "2025") {
