@@ -128,45 +128,53 @@ ipca <- ipca_raw[
 cat("IPCA:", nrow(ipca), "osservazioni mensili\n")
 cat("  Range:", min(ipca$periodo), "-", max(ipca$periodo), "\n")
 
-# Retribuzione contrattuale oraria: indice base dic. 2015=100
-# Filtra per totale economia, dati mensili
+# Retribuzione contrattuale oraria
+# Usa WAGE_H_2021 (base dic. 2021=100, serie più aggiornata) con fallback su WAGE_H_2
+# Filtra: totale economia (0010), totale dipendenti (PROF_STATUS_EMP=10), mensile
 retr <- retr_raw[
-  DATA_TYPE == "WAGE_H_2" &
+  DATA_TYPE == "WAGE_H_2021" &
     REF_AREA == "IT" &
-    FREQ == "M",
+    FREQ == "M" &
+    ECON_ACTIVITY_NACE_2007 == "0010" &
+    PROF_STATUS_EMP == 10,
   .(periodo = ObsDimension, w_nominale = as.numeric(ObsValue))
 ]
+wage_base <- "2021"
+cat("  WAGE_H_2021 (base 2021):", nrow(retr), "osservazioni\n")
 
-# Se ci sono duplicati per ECON_ACTIVITY_NACE_2007 o PROF_STATUS_EMP, filtra totale
+# Fallback su WAGE_H_2 se WAGE_H_2021 vuoto
 if (nrow(retr) == 0) {
-  # Prova senza filtro DATA_TYPE e cerca alternative
-  cat("  WAGE_H_2 non trovato, ricerca alternative...\n")
-  retr_types <- unique(retr_raw$DATA_TYPE)
-  wage_types <- grep("WAGE_H", retr_types, value = TRUE)
-  cat("  Tipi disponibili:", paste(wage_types, collapse = ", "), "\n")
-  if (length(wage_types) > 0) {
-    # Usa il primo tipo di indice orario disponibile con base 2015
-    for (wt in c("WAGE_H_2", "WAGE_H_2021", "WAGE_H_1", "WAGE_H")) {
-      if (wt %in% wage_types) {
-        retr <- retr_raw[
-          DATA_TYPE == wt &
-            REF_AREA == "IT" &
-            FREQ == "M",
-          .(periodo = ObsDimension, w_nominale = as.numeric(ObsValue))
-        ]
-        if (nrow(retr) > 0) {
-          cat("  Usato DATA_TYPE:", wt, "\n")
-          break
-        }
-      }
-    }
-  }
+  cat("  WAGE_H_2021 vuoto, provo WAGE_H_2 (base 2015)...\n")
+  retr <- retr_raw[
+    DATA_TYPE == "WAGE_H_2" &
+      REF_AREA == "IT" &
+      FREQ == "M" &
+      ECON_ACTIVITY_NACE_2007 == "0010",
+    .(periodo = ObsDimension, w_nominale = as.numeric(ObsValue))
+  ]
+  wage_base <- "2015"
+  cat("  WAGE_H_2 (base 2015):", nrow(retr), "osservazioni\n")
 }
 
-# Rimuovi duplicati se necessario (media per periodo)
-if (retr[, .N, by = periodo][, any(N > 1)]) {
+# Rimuovi duplicati se necessario
+if (nrow(retr) > 0 && retr[, .N, by = periodo][, any(N > 1)]) {
   cat("  Duplicati trovati, aggregazione media per periodo...\n")
   retr <- retr[, .(w_nominale = mean(w_nominale, na.rm = TRUE)), by = periodo]
+}
+
+# Ribasamento a 2015=100 se necessario (per coerenza con IPCA base 2015)
+if (wage_base == "2021") {
+  retr[, data_tmp := as.Date(paste0(periodo, "-01"))]
+  base_val <- retr[year(data_tmp) == 2015, mean(w_nominale, na.rm = TRUE)]
+  if (!is.na(base_val) && base_val > 0) {
+    retr[, w_nominale := w_nominale / base_val * 100]
+    cat(
+      "  Ribasato a 2015=100 (fattore:",
+      sprintf("%.4f", 100 / base_val),
+      ")\n"
+    )
+  }
+  retr[, data_tmp := NULL]
 }
 
 cat("Retribuzioni:", nrow(retr), "osservazioni mensili\n")
