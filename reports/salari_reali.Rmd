@@ -132,8 +132,9 @@ ggplot(dt_var_long, aes(x = data, y = variazione, color = serie)) +
 
 \small
 
-```{r tabella-12mesi}
-tab <- dt[data >= max(data) - 365 + 1][order(data)]
+```{r tabella-25mesi}
+n_mesi_tab <- 25
+tab <- tail(dt[order(data)], n_mesi_tab)
 tab_display <- tab[, .(
   Mese = format(data, "%b %Y"),
   `W nom.` = sprintf("%.1f", w_nominale),
@@ -143,10 +144,10 @@ tab_display <- tab[, .(
 )]
 
 kbl(tab_display, booktabs = TRUE, align = "lrrrr",
-    caption = "Ultimi 12 mesi: indici e variazioni tendenziali") %>%
+    caption = paste0("Ultimi ", n_mesi_tab, " mesi: indici e variazioni tendenziali")) %>%
   kable_styling(
     latex_options = c("hold_position", "scale_down"),
-    font_size = 8,
+    font_size = 7,
     full_width = TRUE
   )
 ```
