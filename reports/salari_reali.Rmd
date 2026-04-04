@@ -48,18 +48,26 @@ col_palette <- c(
 Ultimo dato disponibile: **`r meta$periodo_ultimo`**. Serie dal `r format(meta$data_primo, '%B %Y')` al `r meta$periodo_ultimo` (`r meta$n_mesi` mesi).
 
 ```{r sintesi}
+conv_label <- if (!is.na(meta$mesi_a_convergenza)) {
+  paste0(meta$mesi_a_convergenza, " mesi (", format(meta$data_convergenza, "%B %Y"), ")")
+} else {
+  "non convergente al tasso attuale"
+}
+
 tab_sintesi <- data.table(
   Indicatore = c(
     "Variazione salario reale (t/t-12)",
     "Variazione salario nominale (t/t-12)",
     "Inflazione IPCA (t/t-12)",
-    "Variazione cumulata reale dal 2015"
+    "Variazione cumulata reale dal 2015",
+    "Tempo stimato al recupero (indice = 100)"
   ),
   Valore = c(
     sprintf("%+.1f%%", meta$var_w_reale_yoy),
     sprintf("%+.1f%%", meta$var_w_nom_yoy),
     sprintf("%+.1f%%", meta$var_ipca_yoy),
-    sprintf("%+.1f%%", meta$cum_reale_2015)
+    sprintf("%+.1f%%", meta$cum_reale_2015),
+    conv_label
   )
 )
 
@@ -88,8 +96,26 @@ dt_long[, serie := factor(serie,
   labels = c("Salario nominale", "IPCA", "Salario reale")
 )]
 
+# Proiezione convergenza salario reale
+proj_data <- NULL
+if (!is.na(meta$mesi_a_convergenza) && meta$tasso_mensile_12m > 0) {
+  proj_dates <- seq.Date(meta$data_ultimo, by = "month",
+                         length.out = meta$mesi_a_convergenza + 1)
+  proj_values <- meta$w_reale_ultimo * (1 + meta$tasso_mensile_12m)^(0:meta$mesi_a_convergenza)
+  proj_data <- data.table(data = proj_dates, indice = proj_values)
+}
+
 ggplot(dt_long, aes(x = data, y = indice, color = serie)) +
   geom_line(linewidth = 0.7) +
+  {if (!is.null(proj_data)) geom_line(
+    data = proj_data, aes(x = data, y = indice),
+    color = "#009E73", linetype = "dotted", linewidth = 0.6,
+    inherit.aes = FALSE
+  )} +
+  {if (!is.null(proj_data)) annotate(
+    "point", x = meta$data_convergenza, y = 100,
+    shape = 21, size = 2.5, fill = "#009E73", color = "white"
+  )} +
   geom_hline(yintercept = 100, linetype = "dashed", alpha = 0.4) +
   scale_color_manual(values = col_palette) +
   scale_x_date(date_breaks = "1 year", date_labels = "%Y") +

@@ -279,8 +279,49 @@ cat("==== 5. Salvataggio output ====\n\n")
 saveRDS(dt, file.path(output_dir, "serie_mensili.rds"))
 cat("  Salvato:", file.path(output_dir, "serie_mensili.rds"), "\n")
 
-# Metadata
+# Stima convergenza a 100
 ultimo <- dt[.N]
+w_reale_ultimo <- ultimo$w_reale
+gap_a_100 <- 100 - w_reale_ultimo
+
+# Tasso di crescita mensile geometrico (ultimi 12 mesi)
+if (nrow(dt) >= 13) {
+  w_12m_fa <- dt[.N - 12, w_reale]
+  tasso_mensile_12m <- (w_reale_ultimo / w_12m_fa)^(1 / 12) - 1
+} else {
+  tasso_mensile_12m <- NA
+}
+
+# Mesi stimati per raggiungere indice 100
+if (!is.na(tasso_mensile_12m) && tasso_mensile_12m > 0) {
+  mesi_a_convergenza <- ceiling(
+    log(100 / w_reale_ultimo) / log(1 + tasso_mensile_12m)
+  )
+  data_convergenza <- seq.Date(
+    ultimo$data,
+    by = "month",
+    length.out = mesi_a_convergenza + 1
+  )[mesi_a_convergenza + 1]
+} else {
+  mesi_a_convergenza <- NA
+  data_convergenza <- NA
+}
+
+cat("  Stima convergenza:\n")
+cat("    Indice attuale:", sprintf("%.1f", w_reale_ultimo), "\n")
+cat("    Gap a 100:", sprintf("%.1f", gap_a_100), "punti\n")
+cat(
+  "    Tasso mensile (12m):",
+  sprintf("%.3f%%", tasso_mensile_12m * 100),
+  "\n"
+)
+if (!is.na(mesi_a_convergenza)) {
+  cat("    Mesi stimati:", mesi_a_convergenza, "\n")
+  cat("    Data stimata:", format(data_convergenza, "%B %Y"), "\n")
+}
+cat("\n")
+
+# Metadata
 metadata <- list(
   data_ultimo = ultimo$data,
   periodo_ultimo = format(ultimo$data, "%B %Y"),
@@ -288,6 +329,11 @@ metadata <- list(
   var_w_nom_yoy = ultimo$var_w_nom,
   var_ipca_yoy = ultimo$var_ipca,
   cum_reale_2015 = ultimo$w_reale_cum_2015,
+  w_reale_ultimo = w_reale_ultimo,
+  gap_a_100 = gap_a_100,
+  tasso_mensile_12m = tasso_mensile_12m,
+  mesi_a_convergenza = mesi_a_convergenza,
+  data_convergenza = data_convergenza,
   n_mesi = nrow(dt),
   data_primo = min(dt$data),
   generato_il = Sys.time()
