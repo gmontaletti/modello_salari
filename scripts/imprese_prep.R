@@ -131,6 +131,29 @@ clean_imprese_data <- function(data, period_start = "2015-Q1") {
   data_with_labels <- data_filtered %>%
     istatlab::apply_labels()
 
+  # Normalizza colonne: gestisci sia dati labeled che raw
+  if (!"tempo_temp" %in% names(data_with_labels)) {
+    if ("ObsDimension" %in% names(data_with_labels)) {
+      data_with_labels$tempo_temp <- as.character(data_with_labels$ObsDimension)
+    } else if ("TIME_PERIOD" %in% names(data_with_labels)) {
+      data_with_labels$tempo_temp <- as.character(data_with_labels$TIME_PERIOD)
+    }
+  }
+  if (
+    !"valore" %in% names(data_with_labels) &&
+      "ObsValue" %in% names(data_with_labels)
+  ) {
+    data_with_labels$valore <- as.numeric(data_with_labels$ObsValue)
+  }
+  for (lbl in c("ECON_ACTIVITY_NACE_2007_label", "EMPLOYESS_CLASS_label")) {
+    base_col <- sub("_label$", "", lbl)
+    if (
+      !lbl %in% names(data_with_labels) && base_col %in% names(data_with_labels)
+    ) {
+      data_with_labels[[lbl]] <- data_with_labels[[base_col]]
+    }
+  }
+
   # Parse quarters from tempo_temp column (dopo apply_labels)
   cat("  Parsing periodi trimestrali da tempo_temp...\n")
 
@@ -138,10 +161,10 @@ clean_imprese_data <- function(data, period_start = "2015-Q1") {
   data_clean <- data_with_labels %>%
     mutate(
       vintage = get_vintage(DATA_TYPE),
-      # Parse periodo da tempo_temp
-      periodo = tempo_temp,
+      # Parse periodo da tempo_temp (supporta "2015 Q1" e "2015-Q1")
+      periodo = gsub("-", " ", tempo_temp),
       anno = as.integer(substr(tempo_temp, 1, 4)),
-      trimestre = as.integer(substr(tempo_temp, 7, 7)),
+      trimestre = as.integer(gsub(".*Q([0-9]).*", "\\1", tempo_temp)),
       anno_trimestre = anno + (trimestre - 1) / 4,
       # Converti a character prima di elaborare (apply_labels puo creare fattori)
       nace_code = as.character(ECON_ACTIVITY_NACE_2007),
@@ -165,8 +188,8 @@ clean_imprese_data <- function(data, period_start = "2015-Q1") {
       settore_macro_label = as.character(ECON_ACTIVITY_NACE_2007_label),
       dim_aziendale = as.character(EMPLOYESS_CLASS),
       dim_aziendale_label = as.character(EMPLOYESS_CLASS_label),
-      ore_migliaia = valore, # apply_labels rinomina ObsValue -> valore
-      periodo = tempo_temp # apply_labels rinomina ObsDimension -> tempo_temp
+      ore_migliaia = valore # apply_labels rinomina ObsValue -> valore
+      # periodo già impostato sopra con gsub per normalizzare formato
     ) %>%
     select(
       periodo,
@@ -398,6 +421,23 @@ cat("==== Validazione Dati ====\n")
 validate_dataset(imprese_clean, "Imprese Pulito")
 validate_dataset(imprese_nazionale, "Aggregato Nazionale")
 
+# Variabili globali di periodo (calcolate dai dati) -----
+anno_ult <- max(imprese_clean$anno, na.rm = TRUE)
+trim_ult <- max(
+  imprese_clean$trimestre[imprese_clean$anno == anno_ult],
+  na.rm = TRUE
+)
+periodo_ult <- paste(anno_ult, paste0("Q", trim_ult))
+anno_primo <- 2015L # anno base indice ISTAT — costante di serie
+trim_primo <- 1L
+periodo_primo <- paste(anno_primo, paste0("Q", trim_primo))
+n_anni_imp <- (anno_ult - anno_primo) + trim_ult / 4
+
+cat("Periodo di riferimento:\n")
+cat("  Primo:", periodo_primo, "\n")
+cat("  Ultimo:", periodo_ult, "\n")
+cat("  Ampiezza (anni):", n_anni_imp, "\n\n")
+
 # Check vintage distribution
 cat("Distribuzione vintage per anno:\n")
 vintage_per_anno <- imprese_clean %>%
@@ -544,12 +584,12 @@ saveRDS(stat_settori, "output/imprese/stat_descrittive_settori.rds")
 cat("Salvato: output/imprese/stat_descrittive_settori.rds\n\n")
 
 # 5.3 Ranking settori per indice ore (ultimo trimestre)
-cat("--- 5.3 Ranking Settori per Indice Ore (2025-Q3) ---\n\n")
+cat(sprintf("--- 5.3 Ranking Settori per Indice Ore (%s) ---\n\n", periodo_ult))
 
-ranking_2025Q3 <- settori_singoli %>%
+ranking_ultimo <- settori_singoli %>%
   filter(
-    anno == 2025,
-    trimestre == 3,
+    anno == anno_ult,
+    trimestre == trim_ult,
     dim_aziendale == "W_GE1"
   ) %>%
   select(settore_macro, settore_macro_label, ore_migliaia) %>%
@@ -559,9 +599,12 @@ ranking_2025Q3 <- settori_singoli %>%
     indice_fmt = sprintf("%.1f", ore_migliaia)
   )
 
-cat("Top 10 settori per indice ore lavorate (2025-Q3, W_GE1):\n")
+cat(sprintf(
+  "Top 10 settori per indice ore lavorate (%s, W_GE1):\n",
+  periodo_ult
+))
 print(
-  ranking_2025Q3 %>%
+  ranking_ultimo %>%
     select(rank, settore_macro_label, indice_fmt) %>%
     head(10) %>%
     kable(
@@ -571,8 +614,8 @@ print(
 )
 cat("\n")
 
-saveRDS(ranking_2025Q3, "output/imprese/ranking_settori_indice_2025Q3.rds")
-cat("Salvato: output/imprese/ranking_settori_indice_2025Q3.rds\n\n")
+saveRDS(ranking_ultimo, "output/imprese/ranking_settori_indice_ultimo.rds")
+cat("Salvato: output/imprese/ranking_settori_indice_ultimo.rds\n\n")
 
 # 5.4 Evoluzione temporale totale economia
 cat("--- 5.4 Evoluzione Temporale Totale Economia ---\n\n")
@@ -619,7 +662,7 @@ cat("Salvato: output/imprese/evoluzione_totale_economia.rds\n\n")
 # 5.5 Evoluzione settoriale (top 5 settori)
 cat("--- 5.5 Evoluzione Settoriale (Top 5 Settori) ---\n\n")
 
-top5_settori <- ranking_2025Q3 %>%
+top5_settori <- ranking_ultimo %>%
   head(5) %>%
   pull(settore_macro)
 
@@ -751,32 +794,46 @@ cat("\n")
 saveRDS(volatilita_settori, "output/imprese/volatilita_settori.rds")
 cat("Salvato: output/imprese/volatilita_settori.rds\n\n")
 
-# 5.8 Decomposizione crescita 2015-2025 per settore
-cat("--- 5.8 Decomposizione Crescita 2015-2025 ---\n\n")
+# 5.8 Decomposizione crescita per settore
+cat(sprintf(
+  "--- 5.8 Decomposizione Crescita %d-%d ---\n\n",
+  anno_primo,
+  anno_ult
+))
+
 
 decomp_crescita_settori <- settori_singoli %>%
   filter(
-    periodo %in% c("2015 Q1", "2025 Q3"),
+    periodo %in% c(periodo_primo, periodo_ult),
     dim_aziendale == "W_GE1"
   ) %>%
   select(settore_macro, settore_macro_label, periodo, ore_migliaia) %>%
   pivot_wider(
     names_from = periodo,
     values_from = ore_migliaia
-  ) %>%
+  )
+
+# Accesso dinamico a colonne pivotate
+col_primo <- periodo_primo
+col_ultimo <- periodo_ult
+decomp_crescita_settori <- decomp_crescita_settori %>%
   rename(
-    indice_2015Q1 = `2015 Q1`,
-    indice_2025Q3 = `2025 Q3`
+    indice_primo = !!sym(col_primo),
+    indice_ultimo = !!sym(col_ultimo)
   ) %>%
   mutate(
-    var_assoluta = indice_2025Q3 - indice_2015Q1,
-    var_percentuale = (indice_2025Q3 - indice_2015Q1) / indice_2015Q1 * 100,
-    # CAGR (10.5 anni = 42 trimestri)
-    cagr = ((indice_2025Q3 / indice_2015Q1)^(1 / 10.5) - 1) * 100
+    var_assoluta = indice_ultimo - indice_primo,
+    var_percentuale = (indice_ultimo - indice_primo) / indice_primo * 100,
+    # CAGR
+    cagr = ((indice_ultimo / indice_primo)^(1 / n_anni_imp) - 1) * 100
   ) %>%
   arrange(desc(var_percentuale))
 
-cat("Crescita settoriale 2015-Q1 to 2025-Q3 (W_GE1):\n")
+cat(sprintf(
+  "Crescita settoriale %s - %s (W_GE1):\n",
+  periodo_primo,
+  periodo_ult
+))
 print(
   decomp_crescita_settori %>%
     mutate(across(where(is.numeric), ~ round(., 2))) %>%
@@ -784,8 +841,8 @@ print(
       col.names = c(
         "Settore",
         "Label",
-        "Indice 2015-Q1",
-        "Indice 2025-Q3",
+        paste("Indice", periodo_primo),
+        paste("Indice", periodo_ult),
         "Var Assoluta",
         "Var %",
         "CAGR %"
@@ -798,7 +855,7 @@ cat("\n")
 # Totale economia
 decomp_totale <- totale_economia %>%
   filter(
-    periodo %in% c("2015 Q1", "2025 Q3"),
+    periodo %in% c(periodo_primo, periodo_ult),
     dim_aziendale == "W_GE1"
   ) %>%
   select(periodo, ore_migliaia) %>%
@@ -807,18 +864,18 @@ decomp_totale <- totale_economia %>%
     values_from = ore_migliaia
   ) %>%
   rename(
-    indice_2015Q1 = `2015 Q1`,
-    indice_2025Q3 = `2025 Q3`
+    indice_primo = !!sym(col_primo),
+    indice_ultimo = !!sym(col_ultimo)
   ) %>%
   mutate(
-    var_assoluta = indice_2025Q3 - indice_2015Q1,
-    var_percentuale = (indice_2025Q3 - indice_2015Q1) / indice_2015Q1 * 100,
-    cagr = ((indice_2025Q3 / indice_2015Q1)^(1 / 10.5) - 1) * 100
+    var_assoluta = indice_ultimo - indice_primo,
+    var_percentuale = (indice_ultimo - indice_primo) / indice_primo * 100,
+    cagr = ((indice_ultimo / indice_primo)^(1 / n_anni_imp) - 1) * 100
   )
 
 cat("Crescita totale economia (codice 0015, W_GE1):\n")
-cat("  Indice 2015-Q1:", sprintf("%.1f", decomp_totale$indice_2015Q1), "\n")
-cat("  Indice 2025-Q3:", sprintf("%.1f", decomp_totale$indice_2025Q3), "\n")
+cat(sprintf("  Indice %s: %.1f\n", periodo_primo, decomp_totale$indice_primo))
+cat(sprintf("  Indice %s: %.1f\n", periodo_ult, decomp_totale$indice_ultimo))
 cat("  Variazione:", format_crescita(decomp_totale$var_percentuale), "\n")
 cat("  CAGR:", sprintf("%.2f%%", decomp_totale$cagr), "\n\n")
 
@@ -841,13 +898,13 @@ sintesi <- list(
   periodo_min = min(imprese_clean$periodo),
   periodo_max = max(imprese_clean$periodo),
 
-  # Totale economia 2025-Q3 (W_GE1)
-  indice_totale_2025Q3 = totale_economia %>%
-    filter(periodo == "2025 Q3", dim_aziendale == "W_GE1") %>%
+  # Totale economia ultimo trimestre (W_GE1)
+  indice_totale_ultimo = totale_economia %>%
+    filter(periodo == periodo_ult, dim_aziendale == "W_GE1") %>%
     pull(ore_migliaia),
 
   # Growth totale economia
-  crescita_totale_2015_2025 = decomp_totale$var_percentuale,
+  crescita_totale = decomp_totale$var_percentuale,
   cagr_totale = decomp_totale$cagr,
 
   # Settori
@@ -855,15 +912,15 @@ sintesi <- list(
   settore_min_crescita = decomp_crescita_settori$settore_macro_label[nrow(
     decomp_crescita_settori
   )],
-  settore_max_indice_2025 = ranking_2025Q3$settore_macro_label[1],
-  settore_min_indice_2025 = ranking_2025Q3$settore_macro_label[nrow(
-    ranking_2025Q3
+  settore_max_indice_ultimo = ranking_ultimo$settore_macro_label[1],
+  settore_min_indice_ultimo = ranking_ultimo$settore_macro_label[nrow(
+    ranking_ultimo
   )],
 
   # Dimensione aziendale
   gap_W_GE10_medio = mean(confronto_dimensione$diff_percentuale, na.rm = TRUE),
-  gap_W_GE10_2025Q3 = confronto_dimensione %>%
-    filter(periodo == "2025 Q3") %>%
+  gap_W_GE10_ultimo = confronto_dimensione %>%
+    filter(periodo == periodo_ult) %>%
     pull(diff_percentuale),
 
   # Volatilita
@@ -880,27 +937,46 @@ cat("Periodo temporale:", sintesi$n_trimestri, "trimestri\n")
 cat("  da", sintesi$periodo_min, "a", sintesi$periodo_max, "\n\n")
 
 cat("Totale economia (codice 0015, W_GE1):\n")
-cat(
-  "  Indice 2025-Q3:",
-  sprintf("%.1f", sintesi$indice_totale_2025Q3),
-  "(base 2021=100)\n"
-)
-cat(
-  "  Crescita 2015-2025:",
-  format_crescita(sintesi$crescita_totale_2015_2025),
-  "\n"
-)
+cat(sprintf(
+  "  Indice %s: %.1f (base 2021=100)\n",
+  periodo_ult,
+  sintesi$indice_totale_ultimo
+))
+cat(sprintf(
+  "  Crescita %d-%d: %s\n",
+  anno_primo,
+  anno_ult,
+  format_crescita(sintesi$crescita_totale)
+))
 cat("  CAGR:", sprintf("%.2f%%", sintesi$cagr_totale), "\n\n")
 
 cat("Settori:\n")
-cat("  Massima crescita 2015-2025:", sintesi$settore_max_crescita, "\n")
-cat("  Minima crescita 2015-2025:", sintesi$settore_min_crescita, "\n")
-cat("  Indice piu alto 2025-Q3:", sintesi$settore_max_indice_2025, "\n")
-cat("  Indice piu basso 2025-Q3:", sintesi$settore_min_indice_2025, "\n\n")
+cat(sprintf(
+  "  Massima crescita %d-%d: %s\n",
+  anno_primo,
+  anno_ult,
+  sintesi$settore_max_crescita
+))
+cat(sprintf(
+  "  Minima crescita %d-%d: %s\n",
+  anno_primo,
+  anno_ult,
+  sintesi$settore_min_crescita
+))
+cat(sprintf(
+  "  Indice piu alto %s: %s\n",
+  periodo_ult,
+  sintesi$settore_max_indice_ultimo
+))
+cat(sprintf(
+  "  Indice piu basso %s: %s\n\n",
+  periodo_ult,
+  sintesi$settore_min_indice_ultimo
+))
 
 cat("Dimensione aziendale (W_GE10 vs W_GE1):\n")
 cat("  Gap medio periodo:", sprintf("%.2f%%", sintesi$gap_W_GE10_medio), "\n")
-cat("  Gap 2025-Q3:", sprintf("%.2f%%", sintesi$gap_W_GE10_2025Q3), "\n")
+cat(sprintf("  Gap %s: %.2f%%\n", periodo_ult, sintesi$gap_W_GE10_ultimo))
 cat("  (W_GE10 >=10 dip e sottoinsieme di W_GE1 >=1 dip)\n\n")
 
 cat("Volatilita:\n")
@@ -969,7 +1045,13 @@ p21 <- p21_data %>%
   scale_y_continuous(breaks = seq(70, 120, 10)) +
   labs(
     title = "Evoluzione Indice Ore Lavorate - Totale Economia",
-    subtitle = "Italia 2015-2025 (indice base 2021=100, dati destagionalizzati)",
+    subtitle = paste0(
+      "Italia ",
+      anno_primo,
+      "-",
+      anno_ult,
+      " (indice base 2021=100, dati destagionalizzati)"
+    ),
     x = "Anno",
     y = "Indice ore lavorate (2021=100)",
     color = "Dimensione aziendale",
@@ -1004,8 +1086,14 @@ p22 <- evoluzione_settori %>%
   ) +
   scale_color_viridis_d(option = "plasma") +
   labs(
-    title = "Evoluzione Indice Ore Top 5 Settori (2025-Q3)",
-    subtitle = "Italia 2015-2025 (indice base 2021=100, W_GE1)",
+    title = paste0("Evoluzione Indice Ore Top 5 Settori (", periodo_ult, ")"),
+    subtitle = paste0(
+      "Italia ",
+      anno_primo,
+      "-",
+      anno_ult,
+      " (indice base 2021=100, W_GE1)"
+    ),
     x = "Anno",
     y = "Indice ore lavorate (2021=100)",
     color = "Settore"
@@ -1022,8 +1110,8 @@ ggsave(
   dpi = 300
 )
 
-# 6.3 Grafico 23: Crescita settoriale 2015-2025
-cat("3. Crescita settoriale 2015-2025...\n")
+# 6.3 Grafico 23: Crescita settoriale
+cat(sprintf("3. Crescita settoriale %d-%d...\n", anno_primo, anno_ult))
 
 p23 <- decomp_crescita_settori %>%
   mutate(
@@ -1037,7 +1125,7 @@ p23 <- decomp_crescita_settori %>%
     values = c("Positiva" = "#2E86AB", "Negativa" = "#A23B72")
   ) +
   labs(
-    title = "Crescita Settoriale 2015-Q1 to 2025-Q3",
+    title = paste0("Crescita Settoriale ", periodo_primo, " - ", periodo_ult),
     subtitle = "Variazione percentuale indice ore lavorate (W_GE1)",
     x = "Variazione %",
     y = NULL,
@@ -1074,8 +1162,8 @@ p24 <- confronto_dimensione %>%
   ) +
   annotate(
     "rect",
-    xmin = 2015,
-    xmax = 2026,
+    xmin = anno_primo,
+    xmax = anno_ult + 1,
     ymin = -Inf,
     ymax = 0,
     fill = "#A23B72",
@@ -1092,7 +1180,13 @@ p24 <- confronto_dimensione %>%
   ) +
   labs(
     title = "Differenziale Indice Ore: W_GE10 vs W_GE1",
-    subtitle = "Totale economia 2015-2025 (W_GE10 >=10 dip e sottoinsieme di W_GE1 >=1 dip)",
+    subtitle = paste0(
+      "Totale economia ",
+      anno_primo,
+      "-",
+      anno_ult,
+      " (W_GE10 >=10 dip e sottoinsieme di W_GE1 >=1 dip)"
+    ),
     x = "Anno",
     y = "Gap percentuale (%)",
     caption = "Nota: W_GE10 (imprese con 10 o piu dipendenti) e sottoinsieme di W_GE1 (imprese con 1 o piu dipendenti)"
@@ -1107,12 +1201,12 @@ ggsave(
   dpi = 300
 )
 
-# 6.5 Grafico 25: Ranking settori 2025-Q3
-cat("5. Ranking settori per indice (2025-Q3)...\n")
+# 6.5 Grafico 25: Ranking settori ultimo trimestre
+cat(sprintf("5. Ranking settori per indice (%s)...\n", periodo_ult))
 
 top_bottom <- bind_rows(
-  ranking_2025Q3 %>% head(8) %>% mutate(gruppo = "Top 8"),
-  ranking_2025Q3 %>% tail(8) %>% mutate(gruppo = "Bottom 8")
+  ranking_ultimo %>% head(8) %>% mutate(gruppo = "Top 8"),
+  ranking_ultimo %>% tail(8) %>% mutate(gruppo = "Bottom 8")
 )
 
 p25 <- top_bottom %>%
@@ -1122,7 +1216,7 @@ p25 <- top_bottom %>%
   geom_vline(xintercept = 100, linetype = "dashed", color = "gray40") +
   scale_fill_manual(values = c("Top 8" = "#2E86AB", "Bottom 8" = "#A23B72")) +
   labs(
-    title = "Ranking Settori per Indice Ore (2025-Q3)",
+    title = paste0("Ranking Settori per Indice Ore (", periodo_ult, ")"),
     subtitle = "Top 8 e Bottom 8 settori (indice base 2021=100, W_GE1)",
     x = "Indice ore lavorate (2021=100)",
     y = NULL,
@@ -1132,7 +1226,7 @@ p25 <- top_bottom %>%
   theme(axis.text.y = element_text(size = 8))
 
 ggsave(
-  "output/imprese/grafici/25_ranking_settori_2025Q3.png",
+  "output/imprese/grafici/25_ranking_settori_ultimo.png",
   p25,
   width = 10,
   height = 8,
@@ -1148,7 +1242,7 @@ heatmap_data <- evoluzione_settori %>%
 # Seleziona solo alcuni periodi per leggibilita
 periodi_selezionati <- heatmap_data %>%
   distinct(anno_trim, anno, trimestre) %>%
-  filter(trimestre == 1 | (anno == 2025 & trimestre == 3)) %>%
+  filter(trimestre == 1 | (anno == anno_ult & trimestre == trim_ult)) %>%
   pull(anno_trim)
 
 p26 <- heatmap_data %>%
@@ -1215,7 +1309,13 @@ p27 <- p27_data %>%
   ) +
   labs(
     title = "Variazioni Indice Ore - Totale Economia (W_GE1)",
-    subtitle = "Italia 2015-2025 (variazioni % trimestrali e annuali)",
+    subtitle = paste0(
+      "Italia ",
+      anno_primo,
+      "-",
+      anno_ult,
+      " (variazioni % trimestrali e annuali)"
+    ),
     x = "Anno",
     y = "Variazione %",
     color = "Tipo variazione"
@@ -1239,7 +1339,7 @@ p28 <- volatilita_settori %>%
   geom_col(fill = "#2E86AB") +
   labs(
     title = "Volatilita Settoriale (Deviazione Standard Variazioni Trimestrali)",
-    subtitle = "Top 5 settori 2015-2025 (W_GE1)",
+    subtitle = paste0("Top 5 settori ", anno_primo, "-", anno_ult, " (W_GE1)"),
     x = "SD variazioni % trimestrali",
     y = NULL
   ) +
@@ -1269,8 +1369,8 @@ p29 <- scatter_data %>%
   geom_vline(xintercept = 0, linetype = "dashed", color = "gray40") +
   labs(
     title = "Relazione Volatilita - Crescita Settoriale",
-    subtitle = "Top 5 settori 2015-2025 (W_GE1)",
-    x = "Crescita 2015-2025 (%)",
+    subtitle = paste0("Top 5 settori ", anno_primo, "-", anno_ult, " (W_GE1)"),
+    x = paste0("Crescita ", anno_primo, "-", anno_ult, " (%)"),
     y = "Volatilita (SD variazioni % trimestrali)"
   ) +
   theme_salari()
@@ -1300,7 +1400,13 @@ p30 <- p30_data %>%
   geom_point(aes(x = indice_medio), size = 3, color = "#A23B72") +
   geom_vline(xintercept = 100, linetype = "dashed", color = "gray40") +
   labs(
-    title = "Distribuzione Indice Ore per Settore (2015-2025)",
+    title = paste0(
+      "Distribuzione Indice Ore per Settore (",
+      anno_primo,
+      "-",
+      anno_ult,
+      ")"
+    ),
     subtitle = "Range min-max e media per settore (W_GE1)",
     x = "Indice ore lavorate (2021=100)",
     y = NULL
@@ -1317,7 +1423,7 @@ ggsave(
 )
 
 # 6.11 Grafico 31: Decomposizione CAGR
-cat("11. CAGR settoriale 2015-2025...\n")
+cat(sprintf("11. CAGR settoriale %d-%d...\n", anno_primo, anno_ult))
 
 p31 <- decomp_crescita_settori %>%
   mutate(
@@ -1331,7 +1437,7 @@ p31 <- decomp_crescita_settori %>%
     values = c("Positivo" = "#2E86AB", "Negativo" = "#A23B72")
   ) +
   labs(
-    title = "CAGR Settoriale 2015-2025",
+    title = paste0("CAGR Settoriale ", anno_primo, "-", anno_ult),
     subtitle = "Tasso di crescita annuale composto indice ore (W_GE1)",
     x = "CAGR (%)",
     y = NULL,
@@ -1450,6 +1556,17 @@ ggsave(
 
 # 7. Salvataggio finale -----
 
+# Salva metadata di periodo per uso downstream
+saveRDS(
+  list(
+    anno_ult = anno_ult,
+    trim_ult = trim_ult,
+    periodo_ult = periodo_ult,
+    n_anni = n_anni_imp
+  ),
+  "output/imprese/metadata.rds"
+)
+
 cat("\n==== Sezione 7: Riepilogo Finale ====\n\n")
 
 cat("Pipeline imprese completata con successo.\n\n")
@@ -1461,21 +1578,22 @@ cat("- vintage_documentation.rds\n")
 cat("- totale_economia_0015.rds\n")
 cat("- totale_economia_0015_wide.rds\n")
 cat("- stat_descrittive_settori.rds\n")
-cat("- ranking_settori_indice_2025Q3.rds\n")
+cat("- ranking_settori_indice_ultimo.rds\n")
 cat("- evoluzione_totale_economia.rds\n")
 cat("- evoluzione_settori_top5.rds\n")
 cat("- confronto_dimensione_aziendale.rds\n")
 cat("- volatilita_settori.rds\n")
 cat("- decomposizione_crescita_settori.rds\n")
 cat("- decomposizione_crescita_totale.rds\n")
-cat("- sintesi_imprese.rds\n\n")
+cat("- sintesi_imprese.rds\n")
+cat("- metadata.rds\n\n")
 
 cat("Grafici PNG salvati in output/imprese/grafici/:\n")
 cat("21. Evoluzione indice totale economia (W_GE1 e W_GE10)\n")
 cat("22. Evoluzione top 5 settori\n")
-cat("23. Crescita settoriale 2015-2025\n")
+cat(sprintf("23. Crescita settoriale %d-%d\n", anno_primo, anno_ult))
 cat("24. Gap percentuale W_GE10 vs W_GE1\n")
-cat("25. Ranking settori 2025-Q3\n")
+cat(sprintf("25. Ranking settori %s\n", periodo_ult))
 cat("26. Heatmap settori x tempo\n")
 cat("27. Variazioni trimestrali e annuali totale economia\n")
 cat("28. Volatilita settoriale\n")

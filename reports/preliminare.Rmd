@@ -1,6 +1,6 @@
 ---
 title: "Analisi Preliminare dei Dati"
-subtitle: "Fonti ISTAT/OECD e Tendenze 2000-2024 per il Modello Salari Italia"
+subtitle: "`r paste0('Fonti ISTAT/OECD e Tendenze ', start_year, '-', end_year, ' per il Modello Salari Italia')`"
 author:
   - Giampaolo Montaletti
   - "ORCID: 0009-0002-5327-1122"
@@ -32,6 +32,14 @@ header-includes:
   - \captionsetup[table]{position=top}
 ---
 
+```{r metadata, include=FALSE}
+# 1. Metadati temporali (caricati prima del setup per uso nel YAML) -----
+meta_vecm <- readRDS("output/vecm/metadata.rds")
+start_year <- meta_vecm$start_year
+end_year <- meta_vecm$end_year
+ultimo_periodo <- paste0("2020-", end_year)
+```
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   echo = FALSE,
@@ -55,7 +63,7 @@ library(corrplot)
 library(gridExtra)
 library(kableExtra)
 
-# Tema grafici personalizzato
+# 2. Tema grafici personalizzato -----
 theme_salari <- function() {
   theme_minimal(base_size = 11) +
     theme(
@@ -88,7 +96,7 @@ stopifnot(all(c("w_nom", "p", "prod", "u", "pil") %in% names(data_istat)))
 
 # Introduzione
 
-Questo documento presenta un'analisi preliminare dei dati utilizzati per il modello econometrico dei determinanti dei salari in Italia. L'analisi si concentra sul periodo 2000-2024 e costituisce la base empirica per il modello Vector Error Correction (VECM) presentato nel report principale.
+Questo documento presenta un'analisi preliminare dei dati utilizzati per il modello econometrico dei determinanti dei salari in Italia. L'analisi si concentra sul periodo `r paste0(start_year, "-", end_year)` e costituisce la base empirica per il modello Vector Error Correction (VECM) presentato nel report principale.
 
 ## Scopo del Documento
 
@@ -100,7 +108,7 @@ Il documento è organizzato nelle seguenti sezioni:
 
 1. **Fonti Dati ISTAT e OECD**: Documentazione dettagliata degli 11 dataset utilizzati con codici I.Stat, URL API SDMX e specifiche tecniche
 2. **Indicatori Derivati**: Descrizione delle 8 funzioni di preprocessing che trasformano i dati grezzi in variabili analitiche
-3. **Analisi Descrittiva**: Grafici temporali e statistiche per ciascuna delle 9 variabili base, con evidenziazione dei 3 periodi storici (Pre-crisi 2000-2007, Austerity 2008-2019, Post-COVID 2020-2024)
+3. **Analisi Descrittiva**: Grafici temporali e statistiche per ciascuna delle 9 variabili base, con evidenziazione dei 3 periodi storici (Pre-crisi 2000-2007, Austerity 2008-2019, Post-COVID `r ultimo_periodo`)
 4. **Matrice di Correlazione**: Analisi delle relazioni tra variabili
 5. **Conclusioni Preliminari**: Sintesi dei pattern emersi e ipotesi da testare nel modello VECM
 
@@ -217,7 +225,7 @@ kable(fonti,
 
 # Indicatori Derivati e Preprocessing
 
-Questa sezione documenta le 8 funzioni di preprocessing implementate in `01_prepara_dati.R` che trasformano i dati ISTAT grezzi in serie temporali trimestrali omogenee per il periodo 2000-2024.
+Questa sezione documenta le 8 funzioni di preprocessing implementate in `01_prepara_dati.R` che trasformano i dati ISTAT grezzi in serie temporali trimestrali omogenee per il periodo `r paste0(start_year, "-", end_year)`.
 
 ## Funzione 1: `unemploy()` - Tasso di Disoccupazione
 
@@ -454,7 +462,7 @@ kable(derivate,
 
 # Analisi Descrittiva dei Dati Base
 
-Questa sezione presenta grafici temporali, statistiche descrittive e interpretazioni per ciascuna delle 9 variabili base del modello. Le serie sono analizzate distinguendo 3 periodi storici: **Pre-crisi (2000-2007)**, **Austerity (2008-2019)**, **Post-COVID (2020-2024)**.
+Questa sezione presenta grafici temporali, statistiche descrittive e interpretazioni per ciascuna delle 9 variabili base del modello. Le serie sono analizzate distinguendo 3 periodi storici: **Pre-crisi (2000-2007)**, **Austerity (2008-2019)**, **Post-COVID (`r ultimo_periodo`)**.
 
 ```{r helper-functions}
 # Funzione generica per grafici temporali
@@ -482,7 +490,7 @@ plot_serie_temporale <- function(data, var_name, var_label, y_label,
     geom_rect(
       data = data.frame(
         xmin = as.Date(c("2000-01-01", "2008-01-01", "2020-01-01")),
-        xmax = as.Date(c("2007-12-31", "2019-12-31", "2024-12-31")),
+        xmax = as.Date(c("2007-12-31", "2019-12-31", paste0(end_year, "-12-31"))),
         periodo = factor(c("Pre-crisi", "Austerity", "Post-COVID"))
       ),
       aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = periodo),
@@ -515,7 +523,7 @@ calc_stats_periodo <- function(data, var_name) {
       periodo = case_when(
         lubridate::year(date) <= 2007 ~ "2000-2007",
         lubridate::year(date) <= 2019 ~ "2008-2019",
-        TRUE ~ "2020-2024"
+        TRUE ~ ultimo_periodo
       )
     ) %>%
     group_by(periodo) %>%
@@ -540,9 +548,9 @@ calc_stats_periodo <- function(data, var_name) {
 
 ## Salari Nominali
 
-```{r plot-w-nom, fig.cap="Evoluzione Salari Nominali 2000-2024"}
+```{r plot-w-nom, fig.cap=paste0("Evoluzione Salari Nominali ", start_year, "-", end_year)}
 plot_serie_temporale(data_istat, "w_nom",
-                     "Salari Nominali - Italia 2000-2024",
+                     paste0("Salari Nominali - Italia ", start_year, "-", end_year),
                      "Indice (2015=100)", "#457B9D")
 ```
 
@@ -559,9 +567,9 @@ I salari nominali mostrano una crescita costante nel periodo pre-crisi (2000-200
 
 ## IPCA - Indice Prezzi al Consumo
 
-```{r plot-p, fig.cap="Evoluzione IPCA 2000-2024"}
+```{r plot-p, fig.cap=paste0("Evoluzione IPCA ", start_year, "-", end_year)}
 plot_serie_temporale(data_istat, "p",
-                     "IPCA - Italia 2000-2024",
+                     paste0("IPCA - Italia ", start_year, "-", end_year),
                      "Indice (2015=100)", "#E63946")
 ```
 
@@ -578,9 +586,9 @@ L'indice dei prezzi mostra tre fasi distinte. Nel periodo 2000-2007 l'inflazione
 
 ## Produttività del Lavoro
 
-```{r plot-prod, fig.cap="Evoluzione Produttività Lavoro 2000-2024"}
+```{r plot-prod, fig.cap=paste0("Evoluzione Produttività Lavoro ", start_year, "-", end_year)}
 plot_serie_temporale(data_istat, "prod",
-                     "Produttività del Lavoro - Italia 2000-2024",
+                     paste0("Produttività del Lavoro - Italia ", start_year, "-", end_year),
                      "€/ora", "#2A9D8F")
 ```
 
@@ -597,9 +605,9 @@ La produttività del lavoro presenta una crescita sostenuta nel periodo pre-cris
 
 ## Tasso di Disoccupazione
 
-```{r plot-u, fig.cap="Evoluzione Tasso Disoccupazione 2000-2024"}
+```{r plot-u, fig.cap=paste0("Evoluzione Tasso Disoccupazione ", start_year, "-", end_year)}
 plot_serie_temporale(data_istat, "u",
-                     "Tasso di Disoccupazione - Italia 2000-2024",
+                     paste0("Tasso di Disoccupazione - Italia ", start_year, "-", end_year),
                      "%", "#E63946")
 ```
 
@@ -616,9 +624,9 @@ Il tasso di disoccupazione mostra una traiettoria a U: calo marcato nel periodo 
 
 ## Tasso di Occupazione
 
-```{r plot-occ, fig.cap="Evoluzione Tasso Occupazione 2000-2024"}
+```{r plot-occ, fig.cap=paste0("Evoluzione Tasso Occupazione ", start_year, "-", end_year)}
 plot_serie_temporale(data_istat, "occ",
-                     "Tasso di Occupazione - Italia 2000-2024",
+                     paste0("Tasso di Occupazione - Italia ", start_year, "-", end_year),
                      "%", "#457B9D")
 ```
 
@@ -635,9 +643,9 @@ Il tasso di occupazione 15-64 anni è cresciuto da 56% a 64% nel periodo pre-cri
 
 ## Cuneo Fiscale
 
-```{r plot-cuneo, fig.cap="Evoluzione Cuneo Fiscale 2000-2024"}
+```{r plot-cuneo, fig.cap=paste0("Evoluzione Cuneo Fiscale ", start_year, "-", end_year)}
 plot_serie_temporale(data_istat, "cuneo",
-                     "Cuneo Fiscale - Italia 2000-2024",
+                     paste0("Cuneo Fiscale - Italia ", start_year, "-", end_year),
                      "% costo lavoro", "#F4A261")
 ```
 
@@ -654,9 +662,9 @@ Il cuneo fiscale (tax wedge per lavoratore single con salario medio 100% AW) è 
 
 ## Quota Contratti a Tempo Determinato
 
-```{r plot-prec, fig.cap="Evoluzione Quota Contratti a Termine 2000-2024"}
+```{r plot-prec, fig.cap=paste0("Evoluzione Quota Contratti a Termine ", start_year, "-", end_year)}
 plot_serie_temporale(data_istat, "prec",
-                     "Quota Contratti a Tempo Determinato - Italia 2000-2024",
+                     paste0("Quota Contratti a Tempo Determinato - Italia ", start_year, "-", end_year),
                      "%", "#E9C46A")
 ```
 
@@ -673,9 +681,9 @@ La quota di contratti a tempo determinato è cresciuta costantemente da 7-8% (20
 
 ## Investimenti Fissi Lordi
 
-```{r plot-inv, fig.cap="Evoluzione Investimenti Fissi Lordi 2000-2024"}
+```{r plot-inv, fig.cap=paste0("Evoluzione Investimenti Fissi Lordi ", start_year, "-", end_year)}
 plot_serie_temporale(data_istat, "inv",
-                     "Investimenti Fissi Lordi - Italia 2000-2024",
+                     paste0("Investimenti Fissi Lordi - Italia ", start_year, "-", end_year),
                      "Mld €", "#2A9D8F")
 ```
 
@@ -692,9 +700,9 @@ Gli investimenti in macchinari e attrezzature sono cresciuti da 50 a 72 miliardi
 
 ## PIL Reale
 
-```{r plot-pil, fig.cap="Evoluzione PIL Reale 2000-2024"}
+```{r plot-pil, fig.cap=paste0("Evoluzione PIL Reale ", start_year, "-", end_year)}
 plot_serie_temporale(data_istat, "pil",
-                     "PIL Reale - Italia 2000-2024",
+                     paste0("PIL Reale - Italia ", start_year, "-", end_year),
                      "Mld € (prezzi 2020)", "#457B9D")
 ```
 
@@ -754,7 +762,7 @@ data_phillips <- data_istat %>%
   mutate(periodo = case_when(
     lubridate::year(date) <= 2007 ~ "2000-2007",
     lubridate::year(date) <= 2019 ~ "2008-2019",
-    TRUE ~ "2020-2024"
+    TRUE ~ ultimo_periodo
   ))
 
 ggplot(data_phillips, aes(x = u, y = g_w_real, color = periodo)) +
@@ -848,7 +856,7 @@ data_periodo <- data_istat %>%
   mutate(periodo = case_when(
     lubridate::year(date) <= 2007 ~ "2000-2007",
     lubridate::year(date) <= 2019 ~ "2008-2019",
-    TRUE ~ "2020-2024"
+    TRUE ~ ultimo_periodo
   ))
 
 # Coppie di interesse
@@ -864,13 +872,13 @@ coppie <- list(
 cor_results <- lapply(coppie, function(coppia) {
   d1 <- data_periodo %>% filter(periodo == "2000-2007")
   d2 <- data_periodo %>% filter(periodo == "2008-2019")
-  d3 <- data_periodo %>% filter(periodo == "2020-2024")
+  d3 <- data_periodo %>% filter(periodo == ultimo_periodo)
 
   data.frame(
     Coppia = paste(coppia[1], "-", coppia[2]),
     `2000-2007` = cor(d1[[coppia[1]]], d1[[coppia[2]]], use = "complete.obs"),
     `2008-2019` = cor(d2[[coppia[1]]], d2[[coppia[2]]], use = "complete.obs"),
-    `2020-2024` = cor(d3[[coppia[1]]], d3[[coppia[2]]], use = "complete.obs"),
+    !!ultimo_periodo := cor(d3[[coppia[1]]], d3[[coppia[2]]], use = "complete.obs"),
     check.names = FALSE
   )
 }) %>% bind_rows()

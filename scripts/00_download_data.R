@@ -165,6 +165,9 @@ for (ds in istat_datasets) {
       dt <- download_istat_data(ds$id)
       saveRDS(dt, ds$file)
       cat(" OK\n")
+      pausa <- 15 + runif(1, min = 1, max = 12)
+      cat("    Pausa", round(pausa, 1), "s...\n")
+      Sys.sleep(pausa)
     },
     error = function(e) {
       cat(" ERRORE:", conditionMessage(e), "\n")
@@ -190,6 +193,9 @@ for (i in 1:25) {
       nomefile <- paste0("racli/F_", nome, ".rds")
       saveRDS(dt, nomefile)
       cat(" OK\n")
+      pausa <- 15 + runif(1, min = 1, max = 12)
+      cat("    Pausa", round(pausa, 1), "s...\n")
+      Sys.sleep(pausa)
     },
     error = function(e) {
       cat(" ERRORE:", conditionMessage(e), "\n")
@@ -700,7 +706,66 @@ tryCatch(
   }
 )
 
-# 7. Riepilogo finale -----
+# 7. Verifica date massime -----
+
+cat("\n==== Verifica Date Massime ====\n\n")
+
+cat("Dataset economici:\n")
+for (ds in istat_datasets) {
+  if (file.exists(ds$file)) {
+    dt <- readRDS(ds$file)
+    col_tempo <- intersect(
+      c("TIME_PERIOD", "ObsDimension", "tempo_temp"),
+      names(dt)
+    )
+    if (length(col_tempo) > 0) {
+      max_t <- max(dt[[col_tempo[1]]], na.rm = TRUE)
+      cat(sprintf("  %-35s max = %s\n", ds$desc, max_t))
+    }
+  }
+}
+
+cat("\nRACLI:\n")
+for (i in 1:25) {
+  nomefile <- paste0("racli/F_533_957_DF_DCSC_RACLI_", i, ".rds")
+  if (file.exists(nomefile)) {
+    dt <- readRDS(nomefile)
+    col_tempo <- intersect(
+      c("TIME_PERIOD", "ObsDimension", "tempo_temp"),
+      names(dt)
+    )
+    if (length(col_tempo) > 0) {
+      max_t <- max(dt[[col_tempo[1]]], na.rm = TRUE)
+      if (i == 1 || i == 25) {
+        cat(sprintf("  RACLI_%02d: max = %s\n", i, max_t))
+      }
+    }
+  }
+}
+# Mostra solo primo e ultimo per brevita, ma verifica tutti
+racli_max_years <- sapply(1:25, function(i) {
+  nomefile <- paste0("racli/F_533_957_DF_DCSC_RACLI_", i, ".rds")
+  if (file.exists(nomefile)) {
+    dt <- readRDS(nomefile)
+    col_tempo <- intersect(
+      c("TIME_PERIOD", "ObsDimension", "tempo_temp"),
+      names(dt)
+    )
+    if (length(col_tempo) > 0) return(max(dt[[col_tempo[1]]], na.rm = TRUE))
+  }
+  return(NA)
+})
+cat(
+  "  RACLI range anni: ",
+  min(racli_max_years, na.rm = TRUE),
+  "-",
+  max(racli_max_years, na.rm = TRUE),
+  " (tutti i 25 dataflow)\n"
+)
+
+cat("\n")
+
+# 8. Riepilogo finale -----
 
 cat("\n==== Pipeline Completata ====\n")
 cat("Fine:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n\n")

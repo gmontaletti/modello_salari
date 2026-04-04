@@ -28,7 +28,6 @@ header-includes:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
-
   echo = FALSE,
   message = FALSE,
   warning = FALSE,
@@ -38,7 +37,12 @@ knitr::opts_chunk$set(
   out.width = "90%"
 )
 
-# Carica i dati dai risultati della pipeline
+# 1. Metadati temporali -----
+meta_vecm <- readRDS("output/vecm/metadata.rds")
+start_year <- meta_vecm$start_year
+end_year <- meta_vecm$end_year
+
+# 2. Carica i dati dai risultati della pipeline -----
 data_istat <- readRDS("output/vecm/dati_istat.rds")
 results <- readRDS("output/vecm/modello_salari_results.rds")
 
@@ -74,7 +78,7 @@ source("backup/visualizzazioni_salari.R", local = TRUE)
 
 ## Sintesi (Italiano) {-}
 
-Questo studio analizza le determinanti dei salari reali in Italia nel periodo 2000-2025 utilizzando un modello Vector Error Correction (VECM), metodologia appropriata per variabili economiche che presentano relazioni di equilibrio di lungo periodo.
+Questo studio analizza le determinanti dei salari reali in Italia nel periodo `r paste0(start_year, "-", end_year)` utilizzando un modello Vector Error Correction (VECM), metodologia appropriata per variabili economiche che presentano relazioni di equilibrio di lungo periodo.
 
 **Principali risultati:**
 
@@ -96,7 +100,7 @@ I risultati suggeriscono che politiche volte ad aumentare la produttività avreb
 
 ## Executive Summary (English) {-}
 
-This study analyzes the determinants of real wages in Italy over the period 2000-2025 using a Vector Error Correction Model (VECM), a methodology suitable for economic variables exhibiting long-run equilibrium relationships.
+This study analyzes the determinants of real wages in Italy over the period `r paste0(start_year, "-", end_year)` using a Vector Error Correction Model (VECM), a methodology suitable for economic variables exhibiting long-run equilibrium relationships.
 
 **Key findings:**
 
@@ -122,7 +126,7 @@ Results suggest that policies aimed at increasing productivity would have positi
 
 L'Italia ha sperimentato negli ultimi tre decenni una stagnazione salariale che la distingue negativamente nel panorama delle economie avanzate. Mentre in paesi come Germania, Francia e Stati Uniti i salari reali sono cresciuti in linea con la produttività, in Italia si è verificata una progressiva disconnessione tra queste due variabili fondamentali.
 
-Questo studio utilizza dati trimestrali ISTAT per il periodo 2000-2025 (104 osservazioni) per analizzare le determinanti dei salari reali italiani. Le fonti principali includono:
+Questo studio utilizza dati trimestrali ISTAT per il periodo `r paste0(start_year, "-", end_year)` per analizzare le determinanti dei salari reali italiani. Le fonti principali includono:
 
 - **Conti Nazionali Trimestrali**: PIL, valore aggiunto, redditi da lavoro
 - **OROS (Retribuzioni e Costo del Lavoro)**: Retribuzioni lorde per ULA
@@ -193,7 +197,7 @@ I dati italiani mostrano che:
 
 1. **Periodo 2000-2007**: Relazione positiva relativamente stretta, con salari che seguono la produttività
 2. **Periodo 2008-2019**: Appiattimento della relazione, con stagnazione congiunta di entrambe le variabili
-3. **Periodo 2020-2025**: Dispersione maggiore, influenzata dagli shock pandemici e inflazionistici
+3. **Periodo `r paste0("2020-", end_year)`**: Dispersione maggiore, influenzata dagli shock pandemici e inflazionistici
 
 L'elasticità stimata di lungo periodo è compresa tra **0.7 e 0.9**, indicando che solo il 70-90% dei guadagni di produttività viene trasferito ai salari. Questo "gap di trasmissione" può essere attribuito a:
 
@@ -243,7 +247,7 @@ period_stats <- data_istat %>%
     periodo = case_when(
       year <= 2007 ~ "2000-2007",
       year <= 2019 ~ "2008-2019",
-      TRUE ~ "2020-2025"
+      TRUE ~ paste0("2020-", end_year)
     )
   ) %>%
   group_by(periodo) %>%
@@ -695,7 +699,7 @@ L'analisi evidenzia:
 
 3. **Periodo 2013-2019**: Stabilizzazione su valori negativi (~-0.026), suggerendo una disconnessione strutturale tra dinamica salariale e produttività nel breve periodo
 
-4. **Periodo 2020-2025**: Persistenza del pattern negativo con bassa volatilità
+4. **Periodo `r paste0("2020-", end_year)`**: Persistenza del pattern negativo con bassa volatilità
 
 **Nota interpretativa**: Valori negativi indicano che nel breve periodo aumenti di produttività non si traducono in aumenti salariali immediati. La relazione di lungo periodo (VECM) rimane positiva (~0.85), ma la trasmissione trimestrale è diventata più lenta o indiretta
 
@@ -726,7 +730,7 @@ L'analisi conferma l'**appiattimento della curva di Phillips** salariale:
 | 2000-2007 | circa -2.0% |
 | 2008-2012 | circa -1.5% |
 | 2013-2019 | circa -1.0% |
-| 2020-2025 | circa -0.5% |
+| `r paste0("2020-", end_year)` | circa -0.5% |
 
 Questo risultato ha implicazioni rilevanti: la disoccupazione esercita oggi una pressione sui salari significativamente inferiore rispetto a due decenni fa.
 
@@ -764,7 +768,7 @@ Le IRF presentate finora utilizzano shock normalizzati a 1 deviazione standard d
 
 ### Shock di Produttività: +10%
 
-Simuliamo un aumento significativo della produttività del lavoro (+10%), coerente con politiche di innovazione, digitalizzazione o investimenti Industry 4.0. L'entità dello shock corrisponde a circa 5 deviazioni standard dei residui nel periodo 2020-2024.
+Simuliamo un aumento significativo della produttività del lavoro (+10%), coerente con politiche di innovazione, digitalizzazione o investimenti Industry 4.0. L'entità dello shock corrisponde a circa 5 deviazioni standard dei residui nel periodo `r paste0("2020-", end_year)`.
 
 ```{r realistic-irf-prod-comparison, fig.cap="Risposta Salari Reali a Shock Produttività +10%", fig.height=5, fig.width=8}
 if (exists("tvpvar_results") && !is.null(tvpvar_results$model)) {
@@ -1118,7 +1122,7 @@ I risultati suggeriscono che l'efficacia delle politiche economiche dipende dal 
 
 3. **Blanchard, O. & Katz, L.** (1999). Wage Dynamics: Reconciling Theory and Evidence. *American Economic Review*, 89(2), 69-74.
 
-4. **ISTAT** (2020-2025). Conti Nazionali Trimestrali, OROS, Rilevazione Forze Lavoro. Istituto Nazionale di Statistica.
+4. **ISTAT** (`r paste0("2020-", end_year)`). Conti Nazionali Trimestrali, OROS, Rilevazione Forze Lavoro. Istituto Nazionale di Statistica.
 
 5. **Lucifora, C. & Ferraris, M.** (2019). Wages and Productivity in Italy: A Firm-Level Analysis. *Politica Economica*, 35(2), 175-206.
 

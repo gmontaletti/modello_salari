@@ -70,6 +70,63 @@ cat("Directory output create: output/racli/, output/racli/grafici/\n\n")
 
 cat("==== Caricamento Funzioni Utility ====\n\n")
 
+# Applica labels RACLI usando codelists scaricati
+apply_racli_labels <- function(data) {
+  cl <- readRDS("meta/codelists.rds")
+  racli_cl <- as.data.table(cl[["X533_957"]])
+  if (is.null(racli_cl) || nrow(racli_cl) == 0) {
+    return(data)
+  }
+
+  # Mappa dimensione SDMX -> codelist
+  dim_to_cl <- list(
+    SEX = "CL_SEXISTAT1",
+    AGE = "CL_ETA1",
+    ECON_ACTIVITY_NACE_2007 = "CL_ATECO_2007",
+    EMPLOYESS_CLASS = "CL_CLLVT",
+    CONTARCTUAL_OCCUPATION = "CL_PROFILO_PROF",
+    REF_AREA = "CL_ITTER107",
+    EDU_LEV_HIGHEST = "CL_TITOLO_STUDIO",
+    TYPE_OF_CONTRACT = "CL_DURATA",
+    DATA_TYPE = "CL_TIPO_DATO7"
+  )
+
+  for (dim_col in names(dim_to_cl)) {
+    if (dim_col %in% names(data)) {
+      cl_id <- dim_to_cl[[dim_col]]
+      lookup <- racli_cl[
+        id == cl_id,
+        .(code = id_description, label = it_description)
+      ]
+      if (nrow(lookup) > 0) {
+        lbl_col <- paste0(dim_col, "_label")
+        data[[lbl_col]] <- lookup$label[match(
+          as.character(data[[dim_col]]),
+          lookup$code
+        )]
+        # Fallback: usa codice se label non trovata
+        missing <- is.na(data[[lbl_col]])
+        if (any(missing)) {
+          data[[lbl_col]][missing] <- as.character(data[[dim_col]][missing])
+        }
+      }
+    }
+  }
+
+  # Rinomina colonne temporali e valori
+  if ("ObsDimension" %in% names(data)) {
+    data$tempo_temp <- data$ObsDimension
+  }
+  if ("TIME_PERIOD" %in% names(data)) {
+    data$tempo_temp <- data$TIME_PERIOD
+  }
+  if ("ObsValue" %in% names(data)) {
+    data$valore <- as.numeric(data$ObsValue)
+  }
+
+  return(data)
+}
+
 # Identifica livello geografico NUTS
 get_geo_level <- function(code) {
   code <- as.character(code)
@@ -86,7 +143,17 @@ get_geo_level <- function(code) {
 # Carica tabella di lookup ripartizioni da CL_ITTER107
 load_ripartizione_lookup <- function() {
   codelists <- readRDS("meta/codelists.rds")
+  # Supporta sia vecchio formato (CL_ITTER107 diretto) che nuovo (dentro X533_957)
   cl_itter <- codelists[["CL_ITTER107"]]
+  if (is.null(cl_itter)) {
+    all_cl <- codelists[["X533_957"]]
+    if (!is.null(all_cl) && "id" %in% names(all_cl)) {
+      cl_itter <- as.data.table(all_cl[all_cl$id == "CL_ITTER107", ])
+    }
+  }
+  if (is.null(cl_itter) || nrow(cl_itter) == 0) {
+    stop("CL_ITTER107 non trovato nei codelists")
+  }
 
   ripart_lookup <- cl_itter[
     nchar(id_description) == 3 &
@@ -184,6 +251,45 @@ clean_racli_data <- function(data, itter_mapping = NULL) {
     return(NULL)
   }
 
+  # Normalizza colonne: gestisci sia dati labeled che raw
+  if (!"tempo_temp" %in% names(data)) {
+    if ("ObsDimension" %in% names(data)) {
+      data$tempo_temp <- as.integer(data$ObsDimension)
+    } else if ("TIME_PERIOD" %in% names(data)) {
+      data$tempo_temp <- as.integer(data$TIME_PERIOD)
+    }
+  }
+  # Fallback per tutte le colonne _label quando labels non applicate
+  label_cols <- c(
+    "REF_AREA",
+    "SEX",
+    "AGE",
+    "EDU_LEV_HIGHEST",
+    "TYPE_OF_CONTRACT",
+    "EMPLOYESS_CLASS"
+  )
+  for (base_col in label_cols) {
+    lbl_col <- paste0(base_col, "_label")
+    if (!lbl_col %in% names(data) && base_col %in% names(data)) {
+      data[[lbl_col]] <- data[[base_col]]
+    }
+  }
+  # Mappa codici SEX a etichette standard se non labeled
+  if (
+    "SEX_label" %in% names(data) && all(data$SEX_label %in% c("1", "2", "9"))
+  ) {
+    data$SEX_label <- dplyr::case_when(
+      data$SEX_label == "1" ~ "maschi",
+      data$SEX_label == "2" ~ "femmine",
+      data$SEX_label == "9" ~ "totale",
+      TRUE ~ data$SEX_label
+    )
+  }
+  # Normalizza colonna valore
+  if (!"valore" %in% names(data) && "ObsValue" %in% names(data)) {
+    data$valore <- as.numeric(data$ObsValue)
+  }
+
   data_clean <- data %>%
     mutate(
       anno = tempo_temp,
@@ -278,6 +384,34 @@ clean_racli_sector_data <- function(data) {
     return(NULL)
   }
 
+  # Normalizza colonne: gestisci sia dati labeled che raw
+  if (!"tempo_temp" %in% names(data)) {
+    if ("ObsDimension" %in% names(data)) {
+      data$tempo_temp <- as.integer(data$ObsDimension)
+    } else if ("TIME_PERIOD" %in% names(data)) {
+      data$tempo_temp <- as.integer(data$TIME_PERIOD)
+    }
+  }
+  if (!"ECON_ACTIVITY_NACE_2007_label" %in% names(data)) {
+    data$ECON_ACTIVITY_NACE_2007_label <- data$ECON_ACTIVITY_NACE_2007
+  }
+  if (!"SEX_label" %in% names(data)) {
+    data$SEX_label <- data$SEX
+  }
+  if (
+    "SEX_label" %in% names(data) && all(data$SEX_label %in% c("1", "2", "9"))
+  ) {
+    data$SEX_label <- dplyr::case_when(
+      data$SEX_label == "1" ~ "maschi",
+      data$SEX_label == "2" ~ "femmine",
+      data$SEX_label == "9" ~ "totale",
+      TRUE ~ data$SEX_label
+    )
+  }
+  if (!"valore" %in% names(data) && "ObsValue" %in% names(data)) {
+    data$valore <- as.numeric(data$ObsValue)
+  }
+
   data_clean <- data %>%
     mutate(
       anno = tempo_temp,
@@ -331,6 +465,40 @@ clean_racli_sector_data <- function(data) {
 clean_racli_sector_territory_data <- function(data) {
   if (is.null(data)) {
     return(NULL)
+  }
+
+  # Normalizza colonne: gestisci sia dati labeled che raw
+  if (!"tempo_temp" %in% names(data)) {
+    if ("ObsDimension" %in% names(data)) {
+      data$tempo_temp <- as.integer(data$ObsDimension)
+    } else if ("TIME_PERIOD" %in% names(data)) {
+      data$tempo_temp <- as.integer(data$TIME_PERIOD)
+    }
+  }
+  for (col in c(
+    "REF_AREA_label",
+    "ECON_ACTIVITY_NACE_2007_label",
+    "SEX_label",
+    "EMPLOYESS_CLASS_label",
+    "CONTARCTUAL_OCCUPATION_label"
+  )) {
+    base_col <- sub("_label$", "", col)
+    if (!col %in% names(data) && base_col %in% names(data)) {
+      data[[col]] <- data[[base_col]]
+    }
+  }
+  if (!"valore" %in% names(data) && "ObsValue" %in% names(data)) {
+    data$valore <- as.numeric(data$ObsValue)
+  }
+  if (
+    "SEX_label" %in% names(data) && all(data$SEX_label %in% c("1", "2", "9"))
+  ) {
+    data$SEX_label <- dplyr::case_when(
+      data$SEX_label == "1" ~ "maschi",
+      data$SEX_label == "2" ~ "femmine",
+      data$SEX_label == "9" ~ "totale",
+      TRUE ~ data$SEX_label
+    )
   }
 
   ripart_lookup <- load_ripartizione_lookup()
@@ -480,23 +648,33 @@ cat("==== 4. Preparazione Dati RACLI ====\n\n")
 cat("Caricamento file RACLI...\n")
 
 cat("  File 8: dati per sesso...")
-racli_8_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_8.rds")
+racli_8_raw <- apply_racli_labels(readRDS(
+  "racli/F_533_957_DF_DCSC_RACLI_8.rds"
+))
 cat(" OK (", nrow(racli_8_raw), "righe)\n")
 
 cat("  File 11: livello educativo...")
-racli_11_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_11.rds")
+racli_11_raw <- apply_racli_labels(readRDS(
+  "racli/F_533_957_DF_DCSC_RACLI_11.rds"
+))
 cat(" OK (", nrow(racli_11_raw), "righe)\n")
 
 cat("  File 12: tipo contratto...")
-racli_12_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_12.rds")
+racli_12_raw <- apply_racli_labels(readRDS(
+  "racli/F_533_957_DF_DCSC_RACLI_12.rds"
+))
 cat(" OK (", nrow(racli_12_raw), "righe)\n")
 
 cat("  File 17: settori economici...")
-racli_17_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_17.rds")
+racli_17_raw <- apply_racli_labels(readRDS(
+  "racli/F_533_957_DF_DCSC_RACLI_17.rds"
+))
 cat(" OK (", nrow(racli_17_raw), "righe)\n")
 
 cat("  File 6: settore x territorio...")
-racli_6_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_6.rds")
+racli_6_raw <- apply_racli_labels(readRDS(
+  "racli/F_533_957_DF_DCSC_RACLI_6.rds"
+))
 cat(" OK (", nrow(racli_6_raw), "righe)\n")
 
 cat("\nCaricamento mapping ITTER107 -> COD_UTS...\n")
@@ -568,15 +746,35 @@ saveRDS(dati_settori_territorio, "output/racli/dati_settori_territorio.rds")
 
 cat("Salvati dataset preparati in output/racli/\n\n")
 
+# 4b. Variabili temporali globali -----
+
+anno_max <- max(dati_settore_sesso$anno, na.rm = TRUE)
+anno_min <- min(dati_settore_sesso$anno, na.rm = TRUE)
+n_anni <- anno_max - anno_min
+
+cat(
+  "Intervallo temporale rilevato:",
+  anno_min,
+  "-",
+  anno_max,
+  "(",
+  n_anni,
+  "anni)\n\n"
+)
+
+# Nomi colonna dinamici per pivot_wider con prefisso "sal_"
+col_sal_min <- paste0("sal_", anno_min)
+col_sal_max <- paste0("sal_", anno_max)
+
 # 5. Analisi descrittive (02_analisi_descrittive_racli.R) -----
 
 cat("==== 5. Analisi Descrittive RACLI ====\n\n")
 
-# Ranking settori per salario mediano 2022
-cat("Ranking settori per salario mediano (2022)...\n")
+# Ranking settori per salario mediano (ultimo anno)
+cat(paste0("Ranking settori per salario mediano (", anno_max, ")...\n"))
 
-ranking_settori_2022 <- dati_settore_sesso %>%
-  filter(anno == 2022, geo_level == "Nazionale") %>%
+ranking_settori_ultimo <- dati_settore_sesso %>%
+  filter(anno == anno_max, geo_level == "Nazionale") %>%
   group_by(settore) %>%
   summarise(
     salario_mediano = mean(salario_mediano, na.rm = TRUE),
@@ -593,7 +791,7 @@ ranking_settori_2022 <- dati_settore_sesso %>%
     D9_D1_fmt = sprintf("%.2f", rapporto_D9_D1)
   )
 
-saveRDS(ranking_settori_2022, "output/racli/ranking_settori_2022.rds")
+saveRDS(ranking_settori_ultimo, "output/racli/ranking_settori_ultimo.rds")
 
 # Gap di genere
 cat("Calcolo gap di genere...\n")
@@ -614,8 +812,8 @@ gap_gender <- dati_settore_sesso %>%
   ) %>%
   filter(!is.na(gap_percentuale))
 
-gap_gender_2022 <- gap_gender %>%
-  filter(anno == 2022) %>%
+gap_gender_ultimo <- gap_gender %>%
+  filter(anno == anno_max) %>%
   arrange(desc(gap_percentuale)) %>%
   mutate(
     gap_pct_fmt = sprintf("%.1f%%", gap_percentuale),
@@ -632,15 +830,15 @@ gap_gender_tempo <- gap_gender %>%
   )
 
 saveRDS(gap_gender, "output/racli/gap_gender.rds")
-saveRDS(gap_gender_2022, "output/racli/gap_gender_2022.rds")
+saveRDS(gap_gender_ultimo, "output/racli/gap_gender_ultimo.rds")
 saveRDS(gap_gender_tempo, "output/racli/gap_gender_tempo.rds")
 
 # Gap educativo
 cat("Calcolo gap educativo...\n")
 
 if ("educazione" %in% names(dati_educazione)) {
-  gap_educazione_2022 <- dati_educazione %>%
-    filter(anno == 2022, geo_level == "Nazionale") %>%
+  gap_educazione_ultimo <- dati_educazione %>%
+    filter(anno == anno_max, geo_level == "Nazionale") %>%
     group_by(educazione) %>%
     summarise(
       salario_mediano = mean(salario_mediano, na.rm = TRUE),
@@ -654,15 +852,15 @@ if ("educazione" %in% names(dati_educazione)) {
       D9_D1_fmt = sprintf("%.2f", D9_D1)
     )
 
-  saveRDS(gap_educazione_2022, "output/racli/gap_educazione_2022.rds")
+  saveRDS(gap_educazione_ultimo, "output/racli/gap_educazione_ultimo.rds")
 }
 
 # Gap per tipo contratto
 cat("Calcolo gap per tipo contratto...\n")
 
 if ("contratto" %in% names(dati_contratto)) {
-  gap_contratto_2022 <- dati_contratto %>%
-    filter(anno == 2022, geo_level == "Nazionale") %>%
+  gap_contratto_ultimo <- dati_contratto %>%
+    filter(anno == anno_max, geo_level == "Nazionale") %>%
     group_by(contratto) %>%
     summarise(
       salario_mediano = mean(salario_mediano, na.rm = TRUE),
@@ -676,14 +874,14 @@ if ("contratto" %in% names(dati_contratto)) {
       D9_D1_fmt = sprintf("%.2f", D9_D1)
     )
 
-  saveRDS(gap_contratto_2022, "output/racli/gap_contratto_2022.rds")
+  saveRDS(gap_contratto_ultimo, "output/racli/gap_contratto_ultimo.rds")
 }
 
 # Statistiche per ripartizione geografica
 cat("Statistiche per ripartizione geografica...\n")
 
-stat_ripartizioni_2022 <- dati_settore_sesso %>%
-  filter(anno == 2022, geo_level == "Ripartizione") %>%
+stat_ripartizioni_ultimo <- dati_settore_sesso %>%
+  filter(anno == anno_max, geo_level == "Ripartizione") %>%
   group_by(ripartizione) %>%
   summarise(
     salario_mediano = mean(salario_mediano, na.rm = TRUE),
@@ -697,12 +895,12 @@ stat_ripartizioni_2022 <- dati_settore_sesso %>%
   ) %>%
   arrange(desc(salario_mediano))
 
-saveRDS(stat_ripartizioni_2022, "output/racli/stat_ripartizioni_2022.rds")
+saveRDS(stat_ripartizioni_ultimo, "output/racli/stat_ripartizioni_ultimo.rds")
 
 # Evoluzione top 5 settori
 cat("Evoluzione temporale top 5 settori...\n")
 
-top5_settori <- ranking_settori_2022 %>%
+top5_settori <- ranking_settori_ultimo %>%
   head(5) %>%
   pull(settore)
 
@@ -717,11 +915,11 @@ evoluzione_top5 <- dati_settore_sesso %>%
 
 saveRDS(evoluzione_top5, "output/racli/evoluzione_top5_settori.rds")
 
-# Crescita salariale 2014-2022
-cat("Crescita salariale 2014-2022...\n")
+# Crescita salariale primo-ultimo anno
+cat(paste0("Crescita salariale ", anno_min, "-", anno_max, "...\n"))
 
 crescita_settori <- dati_settore_sesso %>%
-  filter(geo_level == "Nazionale", anno %in% c(2014, 2022)) %>%
+  filter(geo_level == "Nazionale", anno %in% c(anno_min, anno_max)) %>%
   group_by(settore, anno) %>%
   summarise(
     salario_mediano = mean(salario_mediano, na.rm = TRUE),
@@ -732,32 +930,36 @@ crescita_settori <- dati_settore_sesso %>%
     values_from = salario_mediano,
     names_prefix = "sal_"
   ) %>%
+  rename(sal_min = !!col_sal_min, sal_max = !!col_sal_max) %>%
   mutate(
-    crescita_assoluta = sal_2022 - sal_2014,
-    crescita_percentuale = ((sal_2022 - sal_2014) / sal_2014) * 100,
-    crescita_annua = ((sal_2022 / sal_2014)^(1 / 8) - 1) * 100
+    crescita_assoluta = sal_max - sal_min,
+    crescita_percentuale = ((sal_max - sal_min) / sal_min) * 100,
+    crescita_annua = ((sal_max / sal_min)^(1 / n_anni) - 1) * 100
   ) %>%
   arrange(desc(crescita_percentuale))
 
-saveRDS(crescita_settori, "output/racli/crescita_settori_2014_2022.rds")
+saveRDS(crescita_settori, "output/racli/crescita_settori.rds")
 
 # Sintesi descrittive
 sintesi <- list(
   n_settori = length(unique(dati_settore_sesso$settore)),
   n_anni = length(unique(dati_settore_sesso$anno)),
-  n_ripartizioni = sum(stat_ripartizioni_2022$ripartizione != "Italia"),
-  salario_mediano_nazionale_2022 = mean(
+  n_ripartizioni = sum(stat_ripartizioni_ultimo$ripartizione != "Italia"),
+  salario_mediano_nazionale_ultimo = mean(
     dati_settore_sesso %>%
-      filter(anno == 2022, geo_level == "Nazionale") %>%
+      filter(anno == anno_max, geo_level == "Nazionale") %>%
       pull(salario_mediano),
     na.rm = TRUE
   ),
-  gap_gender_medio_2022 = mean(gap_gender_2022$gap_percentuale, na.rm = TRUE),
-  settore_max_salario = ranking_settori_2022$settore[1],
-  settore_min_salario = ranking_settori_2022$settore[nrow(
-    ranking_settori_2022
+  gap_gender_medio_ultimo = mean(
+    gap_gender_ultimo$gap_percentuale,
+    na.rm = TRUE
+  ),
+  settore_max_salario = ranking_settori_ultimo$settore[1],
+  settore_min_salario = ranking_settori_ultimo$settore[nrow(
+    ranking_settori_ultimo
   )],
-  crescita_media_2014_2022 = mean(
+  crescita_media = mean(
     crescita_settori$crescita_percentuale,
     na.rm = TRUE
   )
@@ -766,10 +968,14 @@ sintesi <- list(
 saveRDS(sintesi, "output/racli/sintesi_descrittive.rds")
 
 # Ranking settori NACE
-cat("Ranking settori NACE per salario (2022)...\n")
+cat(paste0("Ranking settori NACE per salario (", anno_max, ")...\n"))
 
-ranking_settori_nace_2022 <- dati_settori %>%
-  filter(anno == 2022, sesso == "totale", tipo_settore == "Sezione NACE") %>%
+ranking_settori_nace_ultimo <- dati_settori %>%
+  filter(
+    anno == anno_max,
+    sesso == "totale",
+    tipo_settore == "Sezione NACE"
+  ) %>%
   arrange(desc(salario_mediano)) %>%
   mutate(
     rank = row_number(),
@@ -778,13 +984,20 @@ ranking_settori_nace_2022 <- dati_settori %>%
     D9_D1_fmt = sprintf("%.2f", D9_D1)
   )
 
-saveRDS(ranking_settori_nace_2022, "output/racli/ranking_settori_nace_2022.rds")
+saveRDS(
+  ranking_settori_nace_ultimo,
+  "output/racli/ranking_settori_nace_ultimo.rds"
+)
 
 # Dispersione salariale per settore
-cat("Dispersione salariale per settore (2022)...\n")
+cat(paste0("Dispersione salariale per settore (", anno_max, ")...\n"))
 
-dispersione_settori_2022 <- dati_settori %>%
-  filter(anno == 2022, sesso == "totale", tipo_settore == "Sezione NACE") %>%
+dispersione_settori_ultimo <- dati_settori %>%
+  filter(
+    anno == anno_max,
+    sesso == "totale",
+    tipo_settore == "Sezione NACE"
+  ) %>%
   select(
     settore_code,
     settore,
@@ -800,7 +1013,10 @@ dispersione_settori_2022 <- dati_settori %>%
   arrange(desc(D9_D1)) %>%
   mutate(rank_dispersione = row_number())
 
-saveRDS(dispersione_settori_2022, "output/racli/dispersione_settori_2022.rds")
+saveRDS(
+  dispersione_settori_ultimo,
+  "output/racli/dispersione_settori_ultimo.rds"
+)
 
 # Gap di genere per settore NACE
 cat("Gap di genere per settore NACE...\n")
@@ -821,27 +1037,27 @@ gap_gender_settori <- dati_settori %>%
   ) %>%
   filter(!is.na(gap_percentuale))
 
-gap_gender_settori_2022 <- gap_gender_settori %>%
-  filter(anno == 2022) %>%
+gap_gender_settori_ultimo <- gap_gender_settori %>%
+  filter(anno == anno_max) %>%
   arrange(desc(gap_percentuale)) %>%
   mutate(rank_gap = row_number())
 
 saveRDS(gap_gender_settori, "output/racli/gap_gender_settori.rds")
-saveRDS(gap_gender_settori_2022, "output/racli/gap_gender_settori_2022.rds")
+saveRDS(gap_gender_settori_ultimo, "output/racli/gap_gender_settori_ultimo.rds")
 
 # Interazione Settore x Territorio
-cat("Interazione settore x territorio (2022)...\n")
+cat(paste0("Interazione settore x territorio (", anno_max, ")...\n"))
 
-dati_st_2022 <- dati_settori_territorio %>%
+dati_st_ultimo <- dati_settori_territorio %>%
   filter(
-    anno == 2022,
+    anno == anno_max,
     sesso == "totale",
     geo_level == "Ripartizione",
     tipo_settore == "Sezione NACE"
   ) %>%
   select(area, area_label, ripartizione, settore_code, settore, salario_mediano)
 
-gap_territoriale_settori <- dati_st_2022 %>%
+gap_territoriale_settori <- dati_st_ultimo %>%
   mutate(
     macro_area = case_when(
       area %in% c("ITC", "ITD") ~ "Nord",
@@ -871,7 +1087,7 @@ gap_territoriale_settori <- dati_st_2022 %>%
   ) %>%
   arrange(desc(gap_nord_sud_pct))
 
-cv_territoriale_settori <- dati_st_2022 %>%
+cv_territoriale_settori <- dati_st_ultimo %>%
   group_by(settore_code, settore) %>%
   summarise(
     n_ripartizioni = n(),
@@ -885,24 +1101,27 @@ cv_territoriale_settori <- dati_st_2022 %>%
   ) %>%
   arrange(desc(cv_territoriale))
 
-matrice_settore_ripart <- dati_st_2022 %>%
+matrice_settore_ripart <- dati_st_ultimo %>%
   select(settore, ripartizione, salario_mediano) %>%
   pivot_wider(names_from = ripartizione, values_from = salario_mediano)
 
 saveRDS(
   gap_territoriale_settori,
-  "output/racli/gap_territoriale_settori_2022.rds"
+  "output/racli/gap_territoriale_settori_ultimo.rds"
 )
 saveRDS(
   cv_territoriale_settori,
-  "output/racli/cv_territoriale_settori_2022.rds"
+  "output/racli/cv_territoriale_settori_ultimo.rds"
 )
-saveRDS(matrice_settore_ripart, "output/racli/matrice_settore_ripart_2022.rds")
-saveRDS(dati_st_2022, "output/racli/dati_settori_territorio_2022.rds")
+saveRDS(
+  matrice_settore_ripart,
+  "output/racli/matrice_settore_ripart_ultimo.rds"
+)
+saveRDS(dati_st_ultimo, "output/racli/dati_settori_territorio_ultimo.rds")
 
 sintesi_st <- list(
-  n_settori = length(unique(dati_st_2022$settore_code)),
-  n_ripartizioni = length(unique(dati_st_2022$area)),
+  n_settori = length(unique(dati_st_ultimo$settore_code)),
+  n_ripartizioni = length(unique(dati_st_ultimo$area)),
   gap_nord_sud_medio = mean(
     gap_territoriale_settori$gap_nord_sud_pct,
     na.rm = TRUE
@@ -948,8 +1167,8 @@ indici_disug <- dati_settore_sesso %>%
     D5_D1
   )
 
-indici_nazionale_2022 <- indici_disug %>%
-  filter(anno == 2022, geo_level == "Nazionale") %>%
+indici_nazionale_ultimo <- indici_disug %>%
+  filter(anno == anno_max, geo_level == "Nazionale") %>%
   summarise(
     salario_mediano = mean(salario_mediano, na.rm = TRUE),
     gini = mean(gini_approx, na.rm = TRUE),
@@ -958,10 +1177,14 @@ indici_nazionale_2022 <- indici_disug %>%
     D5_D1 = mean(D5_D1, na.rm = TRUE)
   )
 
-cat("  Gini nazionale 2022:", sprintf("%.3f", indici_nazionale_2022$gini), "\n")
 cat(
-  "  D9/D1 nazionale 2022:",
-  sprintf("%.2f", indici_nazionale_2022$D9_D1),
+  paste0("  Gini nazionale ", anno_max, ":"),
+  sprintf("%.3f", indici_nazionale_ultimo$gini),
+  "\n"
+)
+cat(
+  paste0("  D9/D1 nazionale ", anno_max, ":"),
+  sprintf("%.2f", indici_nazionale_ultimo$D9_D1),
   "\n\n"
 )
 
@@ -981,8 +1204,8 @@ saveRDS(evoluzione_disug, "output/racli/evoluzione_disuguaglianza.rds")
 # Disuguaglianza per ripartizione
 cat("Disuguaglianza per ripartizione...\n")
 
-disug_ripartizioni_2022 <- indici_disug %>%
-  filter(anno == 2022, geo_level == "Ripartizione") %>%
+disug_ripartizioni_ultimo <- indici_disug %>%
+  filter(anno == anno_max, geo_level == "Ripartizione") %>%
   group_by(ripartizione) %>%
   summarise(
     salario_mediano = mean(salario_mediano, na.rm = TRUE),
@@ -992,27 +1215,28 @@ disug_ripartizioni_2022 <- indici_disug %>%
   ) %>%
   arrange(desc(gini))
 
-saveRDS(disug_ripartizioni_2022, "output/racli/disug_ripartizioni_2022.rds")
+saveRDS(disug_ripartizioni_ultimo, "output/racli/disug_ripartizioni_ultimo.rds")
 
 # Mobilita temporale
 cat("Mobilita temporale (quartili province)...\n")
 
 province_mobilita <- indici_disug %>%
-  filter(geo_level == "Provincia", anno %in% c(2014, 2022)) %>%
+  filter(geo_level == "Provincia", anno %in% c(anno_min, anno_max)) %>%
   select(anno, area, area_label, salario_mediano) %>%
   pivot_wider(
     names_from = anno,
     values_from = salario_mediano,
     names_prefix = "sal_"
   ) %>%
-  filter(!is.na(sal_2014) & !is.na(sal_2022))
+  rename(sal_min = !!col_sal_min, sal_max = !!col_sal_max) %>%
+  filter(!is.na(sal_min) & !is.na(sal_max))
 
 if (nrow(province_mobilita) > 0) {
   province_mobilita <- province_mobilita %>%
     mutate(
-      quartile_2014 = ntile(sal_2014, 4),
-      quartile_2022 = ntile(sal_2022, 4),
-      cambio_quartile = quartile_2022 - quartile_2014,
+      quartile_primo = ntile(sal_min, 4),
+      quartile_ultimo = ntile(sal_max, 4),
+      cambio_quartile = quartile_ultimo - quartile_primo,
       mobilita = case_when(
         cambio_quartile > 0 ~ "Ascendente",
         cambio_quartile < 0 ~ "Discendente",
@@ -1021,12 +1245,12 @@ if (nrow(province_mobilita) > 0) {
     )
 
   matrice_transizione <- province_mobilita %>%
-    count(quartile_2014, quartile_2022) %>%
+    count(quartile_primo, quartile_ultimo) %>%
     pivot_wider(
-      names_from = quartile_2022,
+      names_from = quartile_ultimo,
       values_from = n,
       values_fill = 0,
-      names_prefix = "Q2022_"
+      names_prefix = "Q_ultimo_"
     )
 
   saveRDS(province_mobilita, "output/racli/mobilita_province.rds")
@@ -1052,15 +1276,15 @@ saveRDS(sigma_convergence, "output/racli/sigma_convergence.rds")
 if (nrow(province_mobilita) > 0) {
   beta_convergence <- province_mobilita %>%
     mutate(
-      log_sal_2014 = log(sal_2014),
-      crescita_2014_2022 = log(sal_2022 / sal_2014),
-      tasso_crescita_annuo = (crescita_2014_2022 / 8) * 100
+      log_sal_iniziale = log(sal_min),
+      crescita_log = log(sal_max / sal_min),
+      tasso_crescita_annuo = (crescita_log / n_anni) * 100
     ) %>%
-    filter(!is.na(log_sal_2014) & !is.na(tasso_crescita_annuo))
+    filter(!is.na(log_sal_iniziale) & !is.na(tasso_crescita_annuo))
 
   if (nrow(beta_convergence) > 10) {
     model_beta <- lm(
-      tasso_crescita_annuo ~ log_sal_2014,
+      tasso_crescita_annuo ~ log_sal_iniziale,
       data = beta_convergence
     )
     saveRDS(beta_convergence, "output/racli/beta_convergence.rds")
@@ -1106,11 +1330,11 @@ saveRDS(
 
 # Sintesi distributiva
 sintesi_distributiva <- list(
-  gini_2022 = indici_nazionale_2022$gini,
-  D9_D1_2022 = indici_nazionale_2022$D9_D1,
-  gini_2014 = evoluzione_disug %>% filter(anno == 2014) %>% pull(gini),
-  variazione_gini = indici_nazionale_2022$gini -
-    (evoluzione_disug %>% filter(anno == 2014) %>% pull(gini)),
+  gini_ultimo = indici_nazionale_ultimo$gini,
+  D9_D1_ultimo = indici_nazionale_ultimo$D9_D1,
+  gini_primo = evoluzione_disug %>% filter(anno == anno_min) %>% pull(gini),
+  variazione_gini = indici_nazionale_ultimo$gini -
+    (evoluzione_disug %>% filter(anno == anno_min) %>% pull(gini)),
   n_province_mobilita = nrow(province_mobilita)
 )
 
@@ -1126,17 +1350,17 @@ cat("==== 7. Clustering Province ====\n\n")
 cat("Preparazione dati clustering...\n")
 
 dati_clustering <- indici_disug %>%
-  filter(anno == 2022, geo_level == "Provincia") %>%
+  filter(anno == anno_max, geo_level == "Provincia") %>%
   select(area, area_label, salario_mediano, gini_approx, D9_D1)
 
 if (file.exists("output/racli/mobilita_province.rds")) {
   mobilita <- readRDS("output/racli/mobilita_province.rds")
   dati_clustering <- dati_clustering %>%
     left_join(
-      mobilita %>% select(area, sal_2014, sal_2022),
+      mobilita %>% select(area, sal_min, sal_max),
       by = "area"
     ) %>%
-    mutate(crescita_2014_2022 = ((sal_2022 - sal_2014) / sal_2014) * 100)
+    mutate(crescita_periodo = ((sal_max - sal_min) / sal_min) * 100)
 }
 
 dati_clustering <- dati_clustering %>%
@@ -1146,8 +1370,8 @@ cat("  Province per clustering:", nrow(dati_clustering), "\n")
 
 # Matrice per clustering
 vars_cluster <- c("salario_mediano", "gini_approx", "D9_D1")
-if ("crescita_2014_2022" %in% names(dati_clustering)) {
-  vars_cluster <- c(vars_cluster, "crescita_2014_2022")
+if ("crescita_periodo" %in% names(dati_clustering)) {
+  vars_cluster <- c(vars_cluster, "crescita_periodo")
 }
 
 X_raw <- dati_clustering %>% select(all_of(vars_cluster))
@@ -1273,7 +1497,7 @@ if ("cluster_km" %in% names(dati_clustering)) {
 dati_regressione <- dati_province %>%
   mutate(
     log_salario = log(salario_mediano),
-    anno_norm = anno - 2014,
+    anno_norm = anno - anno_min,
     ripartizione_cat = factor(
       ripartizione,
       levels = c("Nord-ovest", "Nord-est", "Centro", "Sud", "Isole")
@@ -1308,7 +1532,7 @@ dati_gender <- dati_settore_sesso %>%
   pivot_wider(names_from = sesso, values_from = salario_mediano) %>%
   mutate(
     gap_gender = (maschi - femmine) / femmine * 100,
-    anno_norm = anno - 2014,
+    anno_norm = anno - anno_min,
     ripartizione_cat = factor(ripartizione)
   ) %>%
   filter(!is.na(gap_gender))
@@ -1325,7 +1549,7 @@ if (nrow(dati_gender) > 50) {
 cat("Analisi premio educativo...\n")
 
 dati_edu_provincia <- dati_educazione %>%
-  filter(geo_level == "Provincia", anno == 2022) %>%
+  filter(geo_level == "Provincia", anno == anno_max) %>%
   filter(
     educazione %in%
       c(
@@ -1358,7 +1582,7 @@ if (ncol(dati_edu_provincia) > 2) {
 cat("Analisi premio contratto permanente...\n")
 
 dati_contr_provincia <- dati_contratto %>%
-  filter(geo_level == "Provincia", anno == 2022) %>%
+  filter(geo_level == "Provincia", anno == anno_max) %>%
   filter(contratto %in% c("tempo indeterminato", "tempo determinato")) %>%
   select(area, area_label, contratto, salario_mediano) %>%
   pivot_wider(
@@ -1401,10 +1625,10 @@ dati_ols_settori <- dati_settori_territorio %>%
   ) %>%
   mutate(
     log_salario = log(salario_mediano),
-    settore_cat = relevel(factor(settore), ref = "attivita manifatturiere"),
+    settore_cat = relevel(factor(settore), ref = "attività manifatturiere"),
     ripartizione_cat = relevel(factor(ripartizione), ref = "Nord-ovest"),
     sesso_cat = relevel(factor(sesso), ref = "maschi"),
-    anno_norm = anno - 2014
+    anno_norm = anno - anno_min
   ) %>%
   filter(!is.na(log_salario) & is.finite(log_salario))
 
@@ -1510,7 +1734,7 @@ p1 <- dati_settore_sesso %>%
   scale_y_continuous(labels = label_dollar(prefix = "EUR", suffix = "")) +
   labs(
     title = "Evoluzione Salario Mediano Nazionale",
-    subtitle = "Italia 2014-2022",
+    subtitle = paste0("Italia ", anno_min, "-", anno_max),
     x = "Anno",
     y = "Salario mediano orario (EUR/h)"
   ) +
@@ -1549,7 +1773,7 @@ ggsave(
 
 # 3. Salari per ripartizione
 p3 <- dati_settore_sesso %>%
-  filter(geo_level == "Ripartizione", sesso == "totale", anno == 2022) %>%
+  filter(geo_level == "Ripartizione", sesso == "totale", anno == anno_max) %>%
   mutate(ripartizione = reorder(ripartizione, salario_mediano)) %>%
   ggplot(aes(x = ripartizione, y = salario_mediano, fill = ripartizione)) +
   geom_col(show.legend = FALSE) +
@@ -1557,7 +1781,7 @@ p3 <- dati_settore_sesso %>%
   scale_y_continuous(labels = label_dollar(prefix = "EUR", suffix = "")) +
   labs(
     title = "Salari Mediani per Ripartizione Geografica",
-    subtitle = "Anno 2022",
+    subtitle = paste0("Anno ", anno_max),
     x = NULL,
     y = "Salario mediano orario (EUR/h)"
   ) +
@@ -1616,7 +1840,7 @@ ggsave(
 
 # 6. Box plot salari per ripartizione
 p6 <- indici_disug %>%
-  filter(anno == 2022, geo_level == "Provincia") %>%
+  filter(anno == anno_max, geo_level == "Provincia") %>%
   mutate(ripartizione = reorder(ripartizione, salario_mediano, median)) %>%
   ggplot(aes(x = ripartizione, y = salario_mediano, fill = ripartizione)) +
   geom_boxplot(show.legend = FALSE, alpha = 0.7) +
@@ -1624,7 +1848,7 @@ p6 <- indici_disug %>%
   scale_y_continuous(labels = label_dollar(prefix = "EUR", suffix = "")) +
   labs(
     title = "Distribuzione Salari Provinciali per Ripartizione",
-    subtitle = "Anno 2022 (box plot)",
+    subtitle = paste0("Anno ", anno_max, " (box plot)"),
     x = NULL,
     y = "Salario mediano orario (EUR/h)"
   ) +
@@ -1641,7 +1865,7 @@ ggsave(
 
 # 7. Scatter disuguaglianza vs salario
 p7 <- indici_disug %>%
-  filter(anno == 2022, geo_level == "Provincia") %>%
+  filter(anno == anno_max, geo_level == "Provincia") %>%
   ggplot(aes(x = salario_mediano, y = gini_approx, color = ripartizione)) +
   geom_point(size = 2, alpha = 0.7) +
   geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed") +
@@ -1649,7 +1873,7 @@ p7 <- indici_disug %>%
   scale_color_viridis_d(option = "plasma") +
   labs(
     title = "Disuguaglianza vs Livello Salariale",
-    subtitle = "Province italiane 2022",
+    subtitle = paste0("Province italiane ", anno_max),
     x = "Salario mediano (EUR/h)",
     y = "Indice di Gini",
     color = "Ripartizione"
@@ -1674,9 +1898,14 @@ p8 <- dati_clustering %>%
   ) +
   labs(
     title = paste0("Clustering Province (K-means, k=", k_opt, ")"),
-    subtitle = "Basato su salario mediano, Gini e crescita 2014-2022",
-    x = "Salario mediano 2022 (EUR/h)",
-    y = "Indice di Gini 2022",
+    subtitle = paste0(
+      "Basato su salario mediano, Gini e crescita ",
+      anno_min,
+      "-",
+      anno_max
+    ),
+    x = paste0("Salario mediano ", anno_max, " (EUR/h)"),
+    y = paste0("Indice di Gini ", anno_max),
     color = "Cluster"
   ) +
   theme_salari()
@@ -1690,8 +1919,8 @@ ggsave(
 )
 
 # 9. Premio educativo
-if (exists("gap_educazione_2022")) {
-  p9 <- gap_educazione_2022 %>%
+if (exists("gap_educazione_ultimo")) {
+  p9 <- gap_educazione_ultimo %>%
     mutate(educazione = reorder(educazione, salario_mediano)) %>%
     ggplot(aes(x = educazione, y = salario_mediano, fill = educazione)) +
     geom_col(show.legend = FALSE) +
@@ -1699,7 +1928,7 @@ if (exists("gap_educazione_2022")) {
     scale_y_continuous(labels = label_dollar(prefix = "EUR", suffix = "")) +
     labs(
       title = "Salari per Livello Educativo",
-      subtitle = "Italia 2022",
+      subtitle = paste0("Italia ", anno_max),
       x = NULL,
       y = "Salario mediano orario (EUR/h)"
     ) +
@@ -1716,8 +1945,8 @@ if (exists("gap_educazione_2022")) {
 }
 
 # 10. Premio contratto
-if (exists("gap_contratto_2022")) {
-  p10 <- gap_contratto_2022 %>%
+if (exists("gap_contratto_ultimo")) {
+  p10 <- gap_contratto_ultimo %>%
     mutate(contratto = reorder(contratto, salario_mediano)) %>%
     ggplot(aes(x = contratto, y = salario_mediano, fill = contratto)) +
     geom_col(show.legend = FALSE) +
@@ -1725,7 +1954,7 @@ if (exists("gap_contratto_2022")) {
     scale_y_continuous(labels = label_dollar(prefix = "EUR", suffix = "")) +
     labs(
       title = "Salari per Tipo Contratto",
-      subtitle = "Italia 2022",
+      subtitle = paste0("Italia ", anno_max),
       x = NULL,
       y = "Salario mediano orario (EUR/h)"
     ) +
@@ -1746,7 +1975,7 @@ p11 <- dati_settore_sesso %>%
   filter(
     geo_level == "Ripartizione",
     sesso %in% c("maschi", "femmine"),
-    anno == 2022
+    anno == anno_max
   ) %>%
   mutate(ripartizione = reorder(ripartizione, salario_mediano, mean)) %>%
   ggplot(aes(x = ripartizione, y = salario_mediano, fill = sesso)) +
@@ -1758,7 +1987,7 @@ p11 <- dati_settore_sesso %>%
   scale_y_continuous(labels = label_dollar(prefix = "EUR", suffix = "")) +
   labs(
     title = "Salari per Sesso e Ripartizione",
-    subtitle = "Anno 2022",
+    subtitle = paste0("Anno ", anno_max),
     x = NULL,
     y = "Salario mediano orario (EUR/h)",
     fill = "Sesso"
@@ -1791,7 +2020,13 @@ p12 <- ggplot(decili_data, aes(x = anno)) +
   scale_y_continuous(labels = label_dollar(prefix = "EUR", suffix = "")) +
   labs(
     title = "Fan Chart Distribuzione Salariale",
-    subtitle = "Evoluzione decili D1, D5, D9 (2014-2022)",
+    subtitle = paste0(
+      "Evoluzione decili D1, D5, D9 (",
+      anno_min,
+      "-",
+      anno_max,
+      ")"
+    ),
     x = "Anno",
     y = "Salario orario (EUR/h)",
     color = "Decile"
@@ -1832,15 +2067,21 @@ if (file.exists("output/racli/beta_convergence.rds")) {
   beta_conv <- readRDS("output/racli/beta_convergence.rds")
 
   p14 <- beta_conv %>%
-    ggplot(aes(x = log_sal_2014, y = tasso_crescita_annuo)) +
+    ggplot(aes(x = log_sal_iniziale, y = tasso_crescita_annuo)) +
     geom_point(size = 2, alpha = 0.6, color = "#2E86AB") +
     geom_smooth(method = "lm", se = TRUE, color = "#C73E1D") +
     scale_x_continuous(labels = function(x) sprintf("EUR%.1f", exp(x))) +
     scale_y_continuous(labels = label_percent(scale = 1)) +
     labs(
       title = "Beta-Convergenza: Province Povere Crescono Piu Velocemente?",
-      subtitle = "Regressione crescita 2014-2022 su livello iniziale",
-      x = "Salario 2014 (log scale, EUR/h)",
+      subtitle = paste0(
+        "Regressione crescita ",
+        anno_min,
+        "-",
+        anno_max,
+        " su livello iniziale"
+      ),
+      x = paste0("Salario ", anno_min, " (log scale, EUR/h)"),
       y = "Tasso crescita annuo (%)"
     ) +
     theme_salari()
@@ -1856,7 +2097,7 @@ if (file.exists("output/racli/beta_convergence.rds")) {
 
 # 15. Top/Bottom 10 province
 province_ranking <- indici_disug %>%
-  filter(anno == 2022, geo_level == "Provincia") %>%
+  filter(anno == anno_max, geo_level == "Provincia") %>%
   arrange(desc(salario_mediano))
 
 top_bottom <- bind_rows(
@@ -1873,7 +2114,7 @@ p15 <- top_bottom %>%
   scale_y_continuous(labels = label_dollar(prefix = "EUR", suffix = "")) +
   labs(
     title = "Top 10 e Bottom 10 Province per Salario Mediano",
-    subtitle = "Anno 2022",
+    subtitle = paste0("Anno ", anno_max),
     x = NULL,
     y = "Salario mediano orario (EUR/h)",
     fill = NULL
@@ -1889,7 +2130,7 @@ ggsave(
 )
 
 # 16. Ranking settori NACE
-ranking_plot_data <- ranking_settori_nace_2022 %>%
+ranking_plot_data <- ranking_settori_nace_ultimo %>%
   head(20) %>%
   mutate(
     settore_short = ifelse(
@@ -1916,7 +2157,7 @@ p16 <- ranking_plot_data %>%
   ) +
   labs(
     title = "Ranking Settori NACE per Salario Mediano",
-    subtitle = "Top 20 settori - Anno 2022",
+    subtitle = paste0("Top 20 settori - Anno ", anno_max),
     x = NULL,
     y = "Salario mediano orario (EUR/h)"
   ) +
@@ -1932,7 +2173,7 @@ ggsave(
 )
 
 # 17. Scatter salari vs dispersione settori
-p17 <- dispersione_settori_2022 %>%
+p17 <- dispersione_settori_ultimo %>%
   ggplot(aes(x = salario_mediano, y = D9_D1)) +
   geom_point(aes(size = salario_medio), alpha = 0.7, color = "#2E86AB") +
   geom_smooth(
@@ -1955,7 +2196,7 @@ p17 <- dispersione_settori_2022 %>%
   ) +
   labs(
     title = "Salari vs Dispersione Salariale per Settore NACE",
-    subtitle = "Anno 2022 - Codici NACE 2007",
+    subtitle = paste0("Anno ", anno_max, " - Codici NACE 2007"),
     x = "Salario mediano (EUR/h)",
     y = "Rapporto interdecile D9/D1"
   ) +
@@ -1970,7 +2211,7 @@ ggsave(
 )
 
 # 18. Gap genere per settore
-gap_plot_data <- gap_gender_settori_2022 %>%
+gap_plot_data <- gap_gender_settori_ultimo %>%
   head(20) %>%
   mutate(
     settore_short = ifelse(
@@ -2002,7 +2243,10 @@ p18 <- gap_plot_data %>%
   ) +
   labs(
     title = "Gap Salariale di Genere per Settore NACE",
-    subtitle = "Top 20 settori con maggior differenziale M/F - Anno 2022",
+    subtitle = paste0(
+      "Top 20 settori con maggior differenziale M/F - Anno ",
+      anno_max
+    ),
     x = NULL,
     y = "Gap di genere (%)"
   ) +
@@ -2018,7 +2262,7 @@ ggsave(
 )
 
 # 19. Heatmap settori x ripartizioni
-heatmap_data <- dati_st_2022 %>%
+heatmap_data <- dati_st_ultimo %>%
   mutate(
     settore_short = ifelse(
       nchar(settore) > 35,
@@ -2058,7 +2302,7 @@ p19 <- heatmap_data %>%
   scale_fill_viridis_c(option = "plasma", name = "Salario\nmediano\n(EUR/h)") +
   labs(
     title = "Salario Mediano per Settore e Ripartizione Geografica",
-    subtitle = "Anno 2022 - Sezioni NACE",
+    subtitle = paste0("Anno ", anno_max, " - Sezioni NACE"),
     x = NULL,
     y = NULL
   ) +
@@ -2116,7 +2360,7 @@ p20 <- gap_plot_ns %>%
   geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
   labs(
     title = "Gap Salariale Nord-Sud per Settore NACE",
-    subtitle = "Anno 2022 - Differenza % (Nord - Sud) / Sud",
+    subtitle = paste0("Anno ", anno_max, " - Differenza % (Nord - Sud) / Sud"),
     x = NULL,
     y = "Gap Nord-Sud (%)"
   ) +
@@ -2145,14 +2389,14 @@ if (file.exists(shp_file)) {
 
   # Verifica che cod_uts sia presente
   if ("cod_uts" %in% names(dati_settore_sesso)) {
-    # Filtra dati provinciali 2022
-    dati_province_2022 <- dati_settore_sesso %>%
-      filter(geo_level == "Provincia", sesso == "totale", anno == 2022) %>%
+    # Filtra dati provinciali ultimo anno
+    dati_province_ultimo <- dati_settore_sesso %>%
+      filter(geo_level == "Provincia", sesso == "totale", anno == anno_max) %>%
       select(area, area_label, ripartizione, salario_mediano, D9_D1, cod_uts)
 
     # Join shapefile con dati RACLI su COD_UTS
     map_data <- italy_sf %>%
-      left_join(dati_province_2022, by = c("COD_UTS" = "cod_uts"))
+      left_join(dati_province_ultimo, by = c("COD_UTS" = "cod_uts"))
 
     n_matched <- sum(!is.na(map_data$salario_mediano))
     n_total <- nrow(italy_sf)
@@ -2177,7 +2421,7 @@ if (file.exists(shp_file)) {
         )
     }
 
-    # Mappa 1: Salari mediani provinciali 2022
+    # Mappa 1: Salari mediani provinciali ultimo anno
     cat("Generazione mappe...\n")
 
     p_map1 <- ggplot(map_data) +
@@ -2196,7 +2440,7 @@ if (file.exists(shp_file)) {
       ) +
       labs(
         title = "Retribuzioni Orarie Mediane per Provincia",
-        subtitle = "Anno 2022 - Fonte: ISTAT RACLI",
+        subtitle = paste0("Anno ", anno_max, " - Fonte: ISTAT RACLI"),
         caption = "Elaborazione: Giampaolo Montaletti"
       ) +
       theme_void() +
@@ -2216,19 +2460,19 @@ if (file.exists(shp_file)) {
       )
 
     ggsave(
-      "output/racli/grafici/21_mappa_salari_province_2022.png",
+      "output/racli/grafici/21_mappa_salari_province.png",
       p_map1,
       width = 10,
       height = 12,
       dpi = 300
     )
 
-    # Mappa 2: Crescita salariale 2014-2022
+    # Mappa 2: Crescita salariale primo-ultimo anno
     crescita_province <- dati_settore_sesso %>%
       filter(
         geo_level == "Provincia",
         sesso == "totale",
-        anno %in% c(2014, 2022)
+        anno %in% c(anno_min, anno_max)
       ) %>%
       select(area, area_label, anno, salario_mediano, cod_uts) %>%
       tidyr::pivot_wider(
@@ -2236,7 +2480,8 @@ if (file.exists(shp_file)) {
         values_from = salario_mediano,
         names_prefix = "sal_"
       ) %>%
-      mutate(crescita_pct = (sal_2022 - sal_2014) / sal_2014 * 100)
+      rename(sal_min = !!col_sal_min, sal_max = !!col_sal_max) %>%
+      mutate(crescita_pct = (sal_max - sal_min) / sal_min * 100)
 
     map_crescita <- italy_sf %>%
       left_join(crescita_province, by = c("COD_UTS" = "cod_uts"))
@@ -2260,7 +2505,13 @@ if (file.exists(shp_file)) {
       ) +
       labs(
         title = "Crescita Salariale per Provincia",
-        subtitle = "Periodo 2014-2022 - Fonte: ISTAT RACLI",
+        subtitle = paste0(
+          "Periodo ",
+          anno_min,
+          "-",
+          anno_max,
+          " - Fonte: ISTAT RACLI"
+        ),
         caption = "Elaborazione: Giampaolo Montaletti"
       ) +
       theme_void() +
@@ -2280,7 +2531,7 @@ if (file.exists(shp_file)) {
       )
 
     ggsave(
-      "output/racli/grafici/22_mappa_crescita_salari_2014_2022.png",
+      "output/racli/grafici/22_mappa_crescita_salari.png",
       p_map2,
       width = 10,
       height = 12,
@@ -2304,7 +2555,11 @@ if (file.exists(shp_file)) {
       ) +
       labs(
         title = "Disuguaglianza Salariale per Provincia",
-        subtitle = "Rapporto D9/D1 - Anno 2022 - Fonte: ISTAT RACLI",
+        subtitle = paste0(
+          "Rapporto D9/D1 - Anno ",
+          anno_max,
+          " - Fonte: ISTAT RACLI"
+        ),
         caption = "Elaborazione: Giampaolo Montaletti"
       ) +
       theme_void() +
@@ -2351,7 +2606,11 @@ if (file.exists(shp_file)) {
         ) +
         labs(
           title = "Clustering Province per Profilo Salariale",
-          subtitle = "K-means clustering - Anno 2022 - Fonte: ISTAT RACLI",
+          subtitle = paste0(
+            "K-means clustering - Anno ",
+            anno_max,
+            " - Fonte: ISTAT RACLI"
+          ),
           caption = "Elaborazione: Giampaolo Montaletti"
         ) +
         theme_void() +
@@ -2396,7 +2655,7 @@ cat("==== 11. Validazione Dati RACLI ====\n\n")
 # Check 1: Copertura temporale
 cat("Check 1: Copertura temporale...\n")
 
-anni_attesi <- 2014:2022
+anni_attesi <- anno_min:anno_max
 test_anni_sesso <- all(anni_attesi %in% unique(dati_settore_sesso$anno))
 test_anni_edu <- all(anni_attesi %in% unique(dati_educazione$anno))
 test_anni_contr <- all(anni_attesi %in% unique(dati_contratto$anno))
@@ -2502,6 +2761,12 @@ png_files <- list.files(
 for (f in png_files) {
   cat("  -", f, "\n")
 }
+
+# Salva metadata temporali
+saveRDS(
+  list(anno_min = anno_min, anno_max = anno_max, n_anni = n_anni),
+  "output/racli/metadata.rds"
+)
 
 cat("\n==== Script completato con successo ====\n")
 cat("Data esecuzione:", format(Sys.time(), "%Y-%m-%d %H:%M:%S"), "\n")

@@ -1,6 +1,6 @@
 ---
 title: "Determinanti e Differenziali Salariali in Italia"
-subtitle: "Un'Analisi Integrata 2000-2025"
+subtitle: "Un'Analisi Integrata Multi-Scala"
 author:
   - name: Giampaolo Montaletti
     email: giampaolo.montaletti@gmail.com
@@ -100,12 +100,29 @@ sintesi_descrittive <- readRDS("output/racli/sintesi_descrittive.rds")
 sintesi_distributiva <- readRDS("output/racli/sintesi_distributiva.rds")
 sintesi_clustering <- readRDS("output/racli/sintesi_clustering.rds")
 sintesi_regressioni <- readRDS("output/racli/sintesi_regressioni.rds")
-gap_gender_2022 <- readRDS("output/racli/gap_gender_2022.rds")
-gap_educazione_2022 <- readRDS("output/racli/gap_educazione_2022.rds")
-stat_ripartizioni_2022 <- readRDS("output/racli/stat_ripartizioni_2022.rds")
-ranking_settori_nace <- readRDS("output/racli/ranking_settori_nace_2022.rds")
+gap_gender_ultimo <- readRDS("output/racli/gap_gender_ultimo.rds")
+gap_educazione_ultimo <- readRDS("output/racli/gap_educazione_ultimo.rds")
+stat_ripartizioni_ultimo <- readRDS("output/racli/stat_ripartizioni_ultimo.rds")
+ranking_settori_nace <- readRDS("output/racli/ranking_settori_nace_ultimo.rds")
 sintesi_st <- readRDS("output/racli/sintesi_settori_territorio.rds")
 confronto_racli_vecm <- readRDS("output/racli/confronto_racli_vecm.rds")
+
+# Metadata per parametrizzazione dinamica
+meta_racli <- readRDS("output/racli/metadata.rds")
+meta_vecm <- readRDS("output/vecm/metadata.rds")
+anno_racli_min <- meta_racli$anno_min
+anno_racli_max <- meta_racli$anno_max
+anno_vecm_start <- meta_vecm$start_year
+anno_vecm_end <- meta_vecm$end_year
+
+# Metadata imprese (opzionale)
+if (file.exists("output/imprese/metadata.rds")) {
+  meta_imp <- readRDS("output/imprese/metadata.rds")
+  anno_imp_ult <- meta_imp$anno_ult
+  trim_imp_ult <- meta_imp$trim_ult
+} else {
+  anno_imp_ult <- 2025; trim_imp_ult <- 3
+}
 
 # Calcola statistiche di validazione
 sintesi_validazione <- list(
@@ -125,7 +142,7 @@ if (file.exists("output/imprese/sintesi_imprese.rds")) {
   sintesi_imprese <- readRDS("output/imprese/sintesi_imprese.rds")
 } else {
   sintesi_imprese <- list(
-    crescita_totale_2015_2025 = 5.8,
+    crescita_totale = 5.8,
     cagr_totale = 0.54
   )
 }
@@ -165,7 +182,7 @@ if ("package:MASS" %in% search()) {
 
 ## Key Findings {-}
 
-This study presents an integrated analysis of wage determinants and differentials in Italy over the period 2000-2025, combining macroeconomic time series modeling (VECM) with microdata analysis (RACLI) and labor demand indicators (hours worked).
+This study presents an integrated analysis of wage determinants and differentials in Italy over the period `r paste0(anno_vecm_start, "-", anno_vecm_end)`, combining macroeconomic time series modeling (VECM) with microdata analysis (RACLI) and labor demand indicators (hours worked).
 
 **Macroeconomic Results (VECM):**
 
@@ -174,14 +191,14 @@ This study presents an integrated analysis of wage determinants and differential
 - **Adjustment speed**: 15% of disequilibrium corrected per quarter (5-7 quarters to equilibrium)
 - **Structural instability**: significant parameter changes after 2008 financial crisis, with progressive flattening of Phillips curve
 
-**Microeconomic Evidence (RACLI 2014-2022):**
+**Microeconomic Evidence (RACLI `r paste0(anno_racli_min, "-", anno_racli_max)`):**
 
 - **Education premium**: university graduates earn 21% more than workers with basic education
 - **Contract premium**: permanent contracts provide 17.5% wage advantage over fixed-term
-- **Gender gap**: 8% in 2022, declining from 8.8% in 2014
+- **Gender gap**: `r sprintf("%.0f%%", sintesi_descrittive$gap_gender_medio_ultimo)` in `r anno_racli_max`, declining from 8.8% in `r anno_racli_min`
 - **Territorial differential**: 13% North-South divide, with slow convergence
 
-**Labor Demand (Hours Worked 2015-2025):**
+**Labor Demand (Hours Worked 2015-`r anno_imp_ult`):**
 
 - **COVID-19 shock**: strong contraction in Q2-2020, full recovery by Q1-2023
 - **Sectoral heterogeneity**: accommodation/food services most volatile; professional services most stable
@@ -189,7 +206,7 @@ This study presents an integrated analysis of wage determinants and differential
 
 **Methodological Innovation:**
 
-The multi-scale integration approach validates macro-micro consistency with a correlation of r = 0.944 between aggregated RACLI data and VECM national series for the overlapping period 2014-2022.
+The multi-scale integration approach validates macro-micro consistency with a correlation of r = 0.944 between aggregated RACLI data and VECM national series for the overlapping period `r paste0(anno_racli_min, "-", anno_racli_max)`.
 
 **Policy Implications:**
 
@@ -206,7 +223,7 @@ The multi-scale integration approach validates macro-micro consistency with a co
 
 ## Sintesi dei Risultati {-}
 
-Questo studio presenta un'analisi integrata dei determinanti e differenziali salariali in Italia nel periodo 2000-2025, combinando modellazione macroeconomica (VECM), analisi microdati (RACLI) e indicatori di domanda di lavoro (ore lavorate).
+Questo studio presenta un'analisi integrata dei determinanti e differenziali salariali in Italia nel periodo `r paste0(anno_vecm_start, "-", anno_vecm_end)`, combinando modellazione macroeconomica (VECM), analisi microdati (RACLI) e indicatori di domanda di lavoro (ore lavorate).
 
 **Risultati Macroeconomici (VECM):**
 
@@ -215,14 +232,14 @@ Questo studio presenta un'analisi integrata dei determinanti e differenziali sal
 - **Velocità di aggiustamento**: 15% dello squilibrio corretto ogni trimestre (5-7 trimestri per tornare all'equilibrio)
 - **Instabilità strutturale**: cambiamenti parametrici significativi dopo la crisi finanziaria 2008, con progressivo appiattimento della curva di Phillips
 
-**Evidenze Microeconomiche (RACLI 2014-2022):**
+**Evidenze Microeconomiche (RACLI `r paste0(anno_racli_min, "-", anno_racli_max)`):**
 
 - **Premio educativo**: i laureati guadagnano il 21% in più rispetto ai lavoratori con istruzione di base
 - **Premio contratto permanente**: i contratti a tempo indeterminato offrono un vantaggio salariale del 17.5%
-- **Gap di genere**: 8% nel 2022, in calo dall'8.8% del 2014
+- **Gap di genere**: `r sprintf("%.0f%%", sintesi_descrittive$gap_gender_medio_ultimo)` nel `r anno_racli_max`, in calo dall'8.8% del `r anno_racli_min`
 - **Differenziale territoriale**: divario Nord-Sud del 13%, con convergenza lenta
 
-**Domanda di Lavoro (Ore Lavorate 2015-2025):**
+**Domanda di Lavoro (Ore Lavorate 2015-`r anno_imp_ult`):**
 
 - **Shock COVID-19**: forte contrazione nel Q2-2020, recupero completo nel Q1-2023
 - **Eterogeneità settoriale**: alloggio/ristorazione più volatili; servizi professionali più stabili
@@ -230,7 +247,7 @@ Questo studio presenta un'analisi integrata dei determinanti e differenziali sal
 
 **Innovazione Metodologica:**
 
-L'approccio multi-scala di integrazione valida la coerenza macro-micro con una correlazione di r = 0.944 tra i dati RACLI aggregati e le serie nazionali VECM per il periodo sovrapposto 2014-2022.
+L'approccio multi-scala di integrazione valida la coerenza macro-micro con una correlazione di r = 0.944 tra i dati RACLI aggregati e le serie nazionali VECM per il periodo sovrapposto `r paste0(anno_racli_min, "-", anno_racli_max)`.
 
 **Implicazioni di Policy:**
 
@@ -264,9 +281,9 @@ Questo studio affronta il puzzle salariale italiano con un approccio **multi-sca
 
 | Prospettiva | Fonte Dati | Periodo | Dimensione |
 |------------|-----------|---------|------------|
-| **Macroeconomica** | ISTAT Conti Nazionali, OECD | 2000-2025 | Aggregato nazionale |
-| **Microeconomica** | ISTAT RACLI | 2014-2022 | Settori, territori, individui |
-| **Domanda lavoro** | ISTAT Ore Lavorate | 2015-2025 | Settori, dimensione impresa |
+| **Macroeconomica** | ISTAT Conti Nazionali, OECD | `r paste0(anno_vecm_start, "-", anno_vecm_end)` | Aggregato nazionale |
+| **Microeconomica** | ISTAT RACLI | `r paste0(anno_racli_min, "-", anno_racli_max)` | Settori, territori, individui |
+| **Domanda lavoro** | ISTAT Ore Lavorate | `r paste0("2015-", anno_imp_ult)` | Settori, dimensione impresa |
 
 L'innovazione metodologica risiede nella **validazione incrociata** tra i diversi livelli di analisi. La correlazione tra serie VECM e dati RACLI aggregati (r = `r sprintf("%.3f", sintesi_validazione$correlazione)`) conferma la coerenza delle diverse fonti informative e legittima l'interpretazione congiunta dei risultati.
 
@@ -365,7 +382,7 @@ fonti <- data.frame(
   ),
   Periodo = c("1995-2024", "1995-2024", "1977-2024", "2010-2024",
               "2002-2024", "2004-2024", "2004-2024", "1995-2024",
-              "2014-2022", "2000-2024"),
+              paste0(anno_racli_min, "-", anno_racli_max), "2000-2024"),
   Utilizzo = c(
     "Produttività (prod)",
     "PIL reale (pil)",
@@ -422,8 +439,12 @@ kable(fonti,
 ```{r fig-timeline, fig.cap="Copertura temporale delle fonti dati", fig.height=3}
 timeline_data <- data.frame(
   fonte = c("VECM (trimestrali)", "RACLI (annuali)", "Ore lavorate (trimestrali)"),
-  inizio = as.Date(c("2000-01-01", "2014-01-01", "2015-01-01")),
-  fine = as.Date(c("2025-01-01", "2022-12-31", "2025-09-30"))
+  inizio = as.Date(c(paste0(anno_vecm_start, "-01-01"),
+                      paste0(anno_racli_min, "-01-01"),
+                      "2015-01-01")),
+  fine = as.Date(c(paste0(anno_vecm_end, "-01-01"),
+                    paste0(anno_racli_max, "-12-31"),
+                    paste0(anno_imp_ult, "-09-30")))
 )
 
 ggplot(timeline_data, aes(y = fonte, color = fonte)) +
@@ -445,13 +466,13 @@ ggplot(timeline_data, aes(y = fonte, color = fonte)) +
 
 # PARTE II: EVIDENZA DESCRITTIVA {-}
 
-# Tendenze Macro: Italia 2000-2025
+# Tendenze Macro: Italia `r paste0(anno_vecm_start, "-", anno_vecm_end)`
 
 ## Panoramica delle Variabili Chiave
 
-Il modello VECM utilizza quattro variabili endogene principali: salari nominali, prezzi, produttività e disoccupazione. La Figura seguente presenta l'evoluzione congiunta di queste serie nel periodo 1995-2025.
+Il modello VECM utilizza quattro variabili endogene principali: salari nominali, prezzi, produttività e disoccupazione. La Figura seguente presenta l'evoluzione congiunta di queste serie nel periodo `r paste0(anno_vecm_start, "-", anno_vecm_end)`.
 
-```{r fig-serie-storiche, fig.cap="Evoluzione delle Quattro Variabili VECM (1995-2025)"}
+```{r fig-serie-storiche, fig.cap=paste0("Evoluzione delle Quattro Variabili VECM (", anno_vecm_start, "-", anno_vecm_end, ")")}
 knitr::include_graphics("output/vecm/grafici/serie_storiche.png")
 ```
 
@@ -466,16 +487,16 @@ La co-evoluzione delle variabili suggerisce l'esistenza di una relazione di equi
 
 ## Dinamica Salariale
 
-Nel periodo 2000-2025, i salari nominali italiani sono cresciuti da un indice di circa 80 a 110 (base 2015=100), con un tasso di crescita annuo medio dell'1.3%. Tuttavia, questa crescita nominale nasconde una sostanziale stagnazione in termini reali.
+Nel periodo `r paste0(anno_vecm_start, "-", anno_vecm_end)`, i salari nominali italiani sono cresciuti da un indice di circa 80 a 110 (base 2015=100), con un tasso di crescita annuo medio dell'1.3%. Tuttavia, questa crescita nominale nasconde una sostanziale stagnazione in termini reali.
 
-```{r fig-salari-nominali, fig.cap="Evoluzione Salari Nominali 2000-2025"}
+```{r fig-salari-nominali, fig.cap=paste0("Evoluzione Salari Nominali ", anno_vecm_start, "-", anno_vecm_end)}
 ggplot(data_istat, aes(x = date, y = w_nom)) +
   geom_line(color = "#457B9D", linewidth = 0.8) +
   geom_smooth(method = "loess", span = 0.3, se = TRUE,
               color = "#E63946", fill = "#E63946", alpha = 0.15) +
   geom_vline(xintercept = as.Date(c("2008-09-15", "2020-03-09")),
              linetype = "dashed", color = "grey50", alpha = 0.5) +
-  labs(title = "Salari Nominali - Italia 2000-2025",
+  labs(title = paste0("Salari Nominali - Italia ", anno_vecm_start, "-", anno_vecm_end),
        subtitle = "Indice base 2015=100 con trend LOESS",
        x = NULL, y = "Indice (2015=100)") +
   theme_salari()
@@ -576,7 +597,7 @@ La correlazione tra salari e produttività è cambiata nel tempo:
 
 ### Confronto Diretto Salari-Produttività
 
-```{r fig-salari-produttivita-vecm, fig.cap="Evoluzione Comparata di Salari Reali e Produttività (1995-2025)"}
+```{r fig-salari-produttivita-vecm, fig.cap=paste0("Evoluzione Comparata di Salari Reali e Produttività (", anno_vecm_start, "-", anno_vecm_end, ")")}
 knitr::include_graphics("output/vecm/grafici/salari_produttivita.png")
 ```
 
@@ -655,11 +676,11 @@ corrplot(
 
 ## Evoluzione dei Salari Nazionali
 
-```{r fig-evoluzione-nazionale, fig.cap="Evoluzione del Salario Mediano Nazionale (2014-2022)"}
+```{r fig-evoluzione-nazionale, fig.cap=paste0("Evoluzione del Salario Mediano Nazionale (", anno_racli_min, "-", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/01_evoluzione_salari_nazionale.png")
 ```
 
-L'evoluzione del salario mediano nazionale mostra una crescita modesta ma costante nel periodo 2014-2022. La crescita cumulata del 6.2% (circa 0.75% annuo) è inferiore all'inflazione del periodo, indicando una sostanziale stagnazione dei salari reali.
+L'evoluzione del salario mediano nazionale mostra una crescita modesta ma costante nel periodo `r paste0(anno_racli_min, "-", anno_racli_max)`. La crescita cumulata del 6.2% (circa 0.75% annuo) è inferiore all'inflazione del periodo, indicando una sostanziale stagnazione dei salari reali.
 
 Il grafico evidenzia tre fasi distinte:
 
@@ -669,22 +690,22 @@ Il grafico evidenzia tre fasi distinte:
 
 ### Evoluzione del Gap di Genere
 
-```{r fig-gap-genere-tempo, fig.cap="Evoluzione del Gap di Genere nel Tempo (2014-2022)"}
+```{r fig-gap-genere-tempo, fig.cap=paste0("Evoluzione del Gap di Genere nel Tempo (", anno_racli_min, "-", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/02_gap_genere_tempo.png")
 ```
 
-Il gap di genere mostra un trend di lenta ma costante riduzione, passando dall'8.8% del 2014 all'8.0% del 2022. La riduzione media annua di 0.26 punti percentuali, pur positiva, implica che sarebbero necessari oltre 30 anni per colmare completamente il divario al ritmo attuale.
+Il gap di genere mostra un trend di lenta ma costante riduzione, passando dall'8.8% del `r anno_racli_min` all'`r sprintf("%.1f%%", sintesi_descrittive$gap_gender_medio_ultimo)` del `r anno_racli_max`. La riduzione media annua di 0.26 punti percentuali, pur positiva, implica che sarebbero necessari oltre 30 anni per colmare completamente il divario al ritmo attuale.
 
 ## Panoramica dei Gap Salariali
 
-I dati RACLI 2014-2022 rivelano significative eterogeneità nella distribuzione salariale italiana. Nel 2022, il salario mediano orario nazionale è pari a €`r sprintf("%.2f", sintesi_descrittive$salario_mediano_nazionale_2022)`/ora.
+I dati RACLI `r paste0(anno_racli_min, "-", anno_racli_max)` rivelano significative eterogeneità nella distribuzione salariale italiana. Nel `r anno_racli_max`, il salario mediano orario nazionale è pari a €`r sprintf("%.2f", sintesi_descrittive$salario_mediano_nazionale_ultimo)`/ora.
 
 ```{r tab-gap-panoramica}
 gap_panoramica <- data.frame(
   Dimensione = c("Genere (M vs F)", "Educazione (Laurea vs Base)",
                  "Contratto (Permanente vs Determinato)", "Territorio (Nord vs Sud)"),
-  `Gap 2022` = c(
-    sprintf("%.1f%%", sintesi_descrittive$gap_gender_medio_2022),
+  `Gap ultimo anno` = c(
+    sprintf("%.1f%%", sintesi_descrittive$gap_gender_medio_ultimo),
     sprintf("%.1f%%", sintesi_regressioni$premio_educativo_medio),
     sprintf("%.1f%%", sintesi_regressioni$premio_permanente_medio),
     "13.0%"
@@ -694,7 +715,7 @@ gap_panoramica <- data.frame(
 )
 
 kable(gap_panoramica,
-      caption = "Panoramica Differenziali Salariali 2022",
+      caption = paste0("Panoramica Differenziali Salariali ", anno_racli_max),
       booktabs = TRUE) %>%
   kable_styling(latex_options = c("hold_position"))
 ```
@@ -703,11 +724,11 @@ kable(gap_panoramica,
 
 ### Premio Educativo
 
-```{r fig-salari-educazione, fig.cap="Salari Mediani per Livello di Istruzione (2014-2022)"}
+```{r fig-salari-educazione, fig.cap=paste0("Salari Mediani per Livello di Istruzione (", anno_racli_min, "-", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/09_salari_educazione.png")
 ```
 
-Il premio educativo è significativo e persistente nel tempo. I lavoratori con istruzione terziaria (laurea e oltre) guadagnano in media il 21% in più rispetto a quelli con istruzione di base. Il gap si è mantenuto stabile nel periodo 2014-2022, indicando che il mercato del lavoro italiano continua a remunerare il capitale umano formale.
+Il premio educativo è significativo e persistente nel tempo. I lavoratori con istruzione terziaria (laurea e oltre) guadagnano in media il 21% in più rispetto a quelli con istruzione di base. Il gap si è mantenuto stabile nel periodo `r paste0(anno_racli_min, "-", anno_racli_max)`, indicando che il mercato del lavoro italiano continua a remunerare il capitale umano formale.
 
 La struttura gerarchica è chiara: istruzione di base < diploma < laurea triennale < laurea magistrale < dottorato. Il rendimento marginale è maggiore nel passaggio diploma→laurea rispetto agli altri livelli.
 
@@ -725,13 +746,13 @@ I contratti a tempo indeterminato garantiscono un premio salariale del 17.5% ris
 
 ### Gap di Genere Territoriale
 
-```{r fig-gap-genere-ripartizioni, fig.cap="Gap di Genere per Ripartizione Geografica (2014-2022)"}
+```{r fig-gap-genere-ripartizioni, fig.cap=paste0("Gap di Genere per Ripartizione Geografica (", anno_racli_min, "-", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/11_salari_sesso_ripartizioni.png")
 ```
 
 Il gap di genere varia significativamente tra ripartizioni territoriali. Il Nord-Ovest presenta i divari maggiori (10-11%), mentre il Sud mostra gap più contenuti (6-7%). Questa apparente contraddizione riflette la diversa composizione settoriale: al Nord prevalgono settori industriali con forte segregazione verticale, al Sud dominano servizi a bassa remunerazione dove il gap è compresso.
 
-In tutte le ripartizioni si osserva un trend di lenta riduzione del gap nel periodo 2014-2022, con convergenza verso valori attorno all'8%.
+In tutte le ripartizioni si osserva un trend di lenta riduzione del gap nel periodo `r paste0(anno_racli_min, "-", anno_racli_max)`, con convergenza verso valori attorno all'8%.
 
 ## Differenziali Settoriali
 
@@ -747,7 +768,7 @@ top5 <- head(settori_display, 5) %>% mutate(Posizione = "Top 5")
 bottom5 <- tail(settori_display, 5) %>% mutate(Posizione = "Bottom 5")
 
 bind_rows(top5, bottom5) %>%
-  kable(caption = "Settori con Salari più Alti e più Bassi (2022)",
+  kable(caption = paste0("Settori con Salari più Alti e più Bassi (", anno_racli_max, ")"),
         col.names = c("Settore", "Salario Mediano", "D9/D1", ""),
         digits = 2,
         booktabs = TRUE) %>%
@@ -756,7 +777,7 @@ bind_rows(top5, bottom5) %>%
 
 ### Ranking Settoriale
 
-```{r fig-salari-settori-nace, fig.cap="Salari Mediani per Settore NACE (2022)"}
+```{r fig-salari-settori-nace, fig.cap=paste0("Salari Mediani per Settore NACE (", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/16_salari_settori_nace.png")
 ```
 
@@ -767,10 +788,10 @@ Il ranking settoriale visualizza la gerarchia completa dei salari mediani per ma
 Il divario Nord-Sud persiste nel mercato del lavoro italiano. Le province del Nord-Ovest registrano salari mediani superiori del 13% rispetto al Sud.
 
 ```{r tab-ripartizioni}
-stat_ripartizioni_2022 %>%
+stat_ripartizioni_ultimo %>%
   select(ripartizione, salario_mediano, D9_D1) %>%
   arrange(desc(salario_mediano)) %>%
-  kable(caption = "Statistiche Salariali per Ripartizione (2022)",
+  kable(caption = paste0("Statistiche Salariali per Ripartizione (", anno_racli_max, ")"),
         col.names = c("Ripartizione", "Salario Mediano (€/h)", "D9/D1"),
         digits = 2,
         booktabs = TRUE) %>%
@@ -778,13 +799,13 @@ stat_ripartizioni_2022 %>%
 
 ### Visualizzazione Territoriale
 
-```{r fig-salari-ripartizioni, fig.cap="Salari Mediani per Ripartizione Territoriale (2014-2022)"}
+```{r fig-salari-ripartizioni, fig.cap=paste0("Salari Mediani per Ripartizione Territoriale (", anno_racli_min, "-", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/03_salari_ripartizioni.png")
 ```
 
 La visualizzazione temporale dei salari per ripartizione conferma la persistenza del divario territoriale. Il Nord-Ovest mantiene stabilmente la leadership, seguito da Nord-Est e Centro. Il gap Nord-Sud si è leggermente ridotto nel periodo, ma rimane sostanziale.
 
-```{r fig-boxplot-ripartizioni, fig.cap="Distribuzione dei Salari Provinciali per Ripartizione (2022)"}
+```{r fig-boxplot-ripartizioni, fig.cap=paste0("Distribuzione dei Salari Provinciali per Ripartizione (", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/06_boxplot_salari_ripartizioni.png")
 ```
 
@@ -804,7 +825,7 @@ La heatmap settori-ripartizioni visualizza la matrice dei salari mediani. Le cel
 2. **Pattern orizzontale**: Le righe Estrazione, Finanza, Energia sono sistematicamente più scure
 3. **Interazioni**: Alcuni settori (Manifatturiero) mostrano forte gradiente Nord-Sud, altri (PA) presentano omogeneità territoriale
 
-```{r fig-gap-nord-sud-settori, fig.cap="Gap Salariale Nord-Sud per Settore (2022)"}
+```{r fig-gap-nord-sud-settori, fig.cap=paste0("Gap Salariale Nord-Sud per Settore (", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/20_gap_nord_sud_settori.png")
 ```
 
@@ -814,7 +835,7 @@ La visualizzazione del gap Nord-Sud per settore conferma l'eterogeneità. Settor
 
 ### Fan Chart dei Decili
 
-```{r fig-fan-chart-decili, fig.cap="Evoluzione della Distribuzione Salariale: Fan Chart dei Decili (2014-2022)"}
+```{r fig-fan-chart-decili, fig.cap=paste0("Evoluzione della Distribuzione Salariale: Fan Chart dei Decili (", anno_racli_min, "-", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/12_fan_chart_decili.png")
 ```
 
@@ -830,7 +851,7 @@ Questa stabilità contrasta con le dinamiche osservate in altri paesi dove la gl
 
 ### Evoluzione del Rapporto Interdecile
 
-```{r fig-d9d1-tempo, fig.cap="Evoluzione del Rapporto D9/D1 nel Tempo (2014-2022)"}
+```{r fig-d9d1-tempo, fig.cap=paste0("Evoluzione del Rapporto D9/D1 nel Tempo (", anno_racli_min, "-", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/05_rapporto_D9_D1.png")
 ```
 
@@ -838,7 +859,7 @@ L'evoluzione del rapporto interdecile D9/D1 conferma la stabilità della dispers
 
 ### Relazione Salario-Dispersione
 
-```{r fig-scatter-gini-salario, fig.cap="Relazione tra Salario Mediano e Dispersione a Livello Provinciale (2022)"}
+```{r fig-scatter-gini-salario, fig.cap=paste0("Relazione tra Salario Mediano e Dispersione a Livello Provinciale (", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/07_scatter_gini_salario.png")
 ```
 
@@ -848,29 +869,29 @@ Lo scatter plot provinciale rivela una correlazione positiva tra salario mediano
 
 L'analisi cartografica consente di visualizzare la distribuzione spaziale dei fenomeni salariali a livello provinciale, evidenziando pattern territoriali non catturabili dalle statistiche aggregate.
 
-### Livelli Salariali Provinciali 2022
+### Livelli Salariali Provinciali `r anno_racli_max`
 
-```{r fig-mappa-salari-2022, fig.cap="Distribuzione Territoriale dei Salari Mediani Provinciali (2022)"}
-knitr::include_graphics("output/racli/grafici/17_mappa_salari_province_2022.png")
+```{r fig-mappa-salari-2022, fig.cap=paste0("Distribuzione Territoriale dei Salari Mediani Provinciali (", anno_racli_max, ")")}
+knitr::include_graphics("output/racli/grafici/21_mappa_salari_province.png")
 ```
 
 La mappa dei salari mediani provinciali evidenzia un marcato gradiente Nord-Sud. Le province dell'arco alpino e della pianura padana registrano i valori più elevati (Milano, Bolzano, Trieste con salari mediani superiori a €14/h), mentre le province meridionali, in particolare Calabria e Sicilia interne, presentano i valori minimi (inferiori a €10/h).
 
 Questo pattern è coerente con la distribuzione delle attività produttive ad alto valore aggiunto, concentrate nel Nord industriale. Le province metropolitane (Roma, Napoli) mostrano valori intermedi, riflettendo la compresenza di settori ad alta e bassa remunerazione.
 
-### Dinamica di Crescita 2014-2022
+### Dinamica di Crescita `r paste0(anno_racli_min, "-", anno_racli_max)`
 
-```{r fig-mappa-crescita, fig.cap="Crescita Percentuale dei Salari Mediani per Provincia (2014-2022)"}
-knitr::include_graphics("output/racli/grafici/18_mappa_crescita_salari_2014_2022.png")
+```{r fig-mappa-crescita, fig.cap=paste0("Crescita Percentuale dei Salari Mediani per Provincia (", anno_racli_min, "-", anno_racli_max, ")")}
+knitr::include_graphics("output/racli/grafici/22_mappa_crescita_salari.png")
 ```
 
-La mappa della crescita salariale nel periodo 2014-2022 rivela un pattern di lenta convergenza territoriale. Alcune province del Mezzogiorno (Sardegna, Puglia costiera) mostrano tassi di crescita superiori alla media nazionale, suggerendo un parziale catching-up.
+La mappa della crescita salariale nel periodo `r paste0(anno_racli_min, "-", anno_racli_max)` rivela un pattern di lenta convergenza territoriale. Alcune province del Mezzogiorno (Sardegna, Puglia costiera) mostrano tassi di crescita superiori alla media nazionale, suggerendo un parziale catching-up.
 
 Tuttavia, la convergenza è incompleta: province già ad alto reddito come Milano e Roma mantengono tassi di crescita elevati, alimentando una dinamica di polarizzazione nelle aree metropolitane. Le province con crescita più debole si concentrano nelle aree interne appenniniche e nelle isole minori.
 
 ### Dispersione Salariale Provinciale
 
-```{r fig-mappa-disuguaglianza, fig.cap="Rapporto Interdecile D9/D1 per Provincia (2022)"}
+```{r fig-mappa-disuguaglianza, fig.cap=paste0("Rapporto Interdecile D9/D1 per Provincia (", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/19_mappa_disuguaglianza_D9_D1.png")
 ```
 
@@ -891,13 +912,13 @@ L'analisi di clustering K-means identifica quattro profili provinciali distinti:
 3. **Cluster "Transizione"** (giallo): Province del Centro con valori intermedi
 4. **Cluster "Basso reddito"** (rosso): Province del Sud con salari bassi e crescita limitata
 
-La classificazione conferma la persistenza di una struttura duale del mercato del lavoro italiano, con limitata mobilità tra cluster: l'83% delle province mantiene la stessa classificazione nell'intero periodo 2014-2022.
+La classificazione conferma la persistenza di una struttura duale del mercato del lavoro italiano, con limitata mobilità tra cluster: l'83% delle province mantiene la stessa classificazione nell'intero periodo `r paste0(anno_racli_min, "-", anno_racli_max)`.
 
 ## Fatti Stilizzati: Livello Micro
 
 L'analisi RACLI identifica 11 fatti stilizzati:
 
-1. **Stagnazione relativa**: Crescita 2014-2022 del 6.2% (+0.75% annuo), inferiore all'inflazione
+1. **Stagnazione relativa**: Crescita `r paste0(anno_racli_min, "-", anno_racli_max)` del 6.2% (+0.75% annuo), inferiore all'inflazione
 2. **Eterogeneità settoriale dominante**: Rapporto ~4:1 tra settori top e bottom
 3. **Correlazione salari-dispersione**: Settori ad alta retribuzione hanno maggiore D9/D1
 4. **Gap di genere settoriale**: Varia da -32% (manifatturiero) a +4% (servizi supporto)
@@ -915,7 +936,7 @@ L'analisi RACLI identifica 11 fatti stilizzati:
 
 ## Tendenze Aggregate
 
-L'indice MHOUR_JV (ore lavorate, base 2021=100) mostra una crescita del `r format(sintesi_imprese$crescita_totale_2015_2025, digits=1)`% nel periodo 2015-2025, corrispondente a un CAGR del `r sprintf("%.2f%%", sintesi_imprese$cagr_totale)`.
+L'indice MHOUR_JV (ore lavorate, base 2021=100) mostra una crescita del `r format(sintesi_imprese$crescita_totale, digits=1)`% nel periodo 2015-`r anno_imp_ult`, corrispondente a un CAGR del `r sprintf("%.2f%%", sintesi_imprese$cagr_totale)`.
 
 ```{r fig-ore-lavorate, fig.cap="Evoluzione Indice Ore Lavorate Totale Economia"}
 knitr::include_graphics("output/imprese/grafici/21_evoluzione_indice_totale.png")
@@ -923,7 +944,7 @@ knitr::include_graphics("output/imprese/grafici/21_evoluzione_indice_totale.png"
 
 ### Evoluzione per Settori Principali
 
-```{r fig-top5-settori, fig.cap="Evoluzione Ore Lavorate per i Top 5 Settori (2015-2025)"}
+```{r fig-top5-settori, fig.cap=paste0("Evoluzione Ore Lavorate per i Top 5 Settori (2015-", anno_imp_ult, ")")}
 knitr::include_graphics("output/imprese/grafici/22_evoluzione_top5_settori.png")
 ```
 
@@ -949,7 +970,7 @@ volatilita_settori %>%
 
 ### Volatilità Settoriale
 
-```{r fig-volatilita-settori, fig.cap="Volatilità delle Ore Lavorate per Settore (2015-2025)"}
+```{r fig-volatilita-settori, fig.cap=paste0("Volatilità delle Ore Lavorate per Settore (2015-", anno_imp_ult, ")")}
 knitr::include_graphics("output/imprese/grafici/28_volatilita_settori.png")
 ```
 
@@ -959,7 +980,7 @@ Questa eterogeneità ha implicazioni rilevanti per la protezione sociale: i lavo
 
 ### Crescita Settoriale Cumulata
 
-```{r fig-cagr-settori, fig.cap="Tasso di Crescita Annuale Composto (CAGR) per Settore 2015-2025"}
+```{r fig-cagr-settori, fig.cap=paste0("Tasso di Crescita Annuale Composto (CAGR) per Settore 2015-", anno_imp_ult)}
 knitr::include_graphics("output/imprese/grafici/31_cagr_settoriale.png")
 ```
 
@@ -967,11 +988,11 @@ L'analisi del CAGR settoriale evidenzia le divergenze strutturali nella dinamica
 
 ### Ranking Settoriale Attuale
 
-```{r fig-ranking-settori, fig.cap="Ranking Settori per Indice Ore Lavorate (Q3-2025)"}
+```{r fig-ranking-settori, fig.cap=paste0("Ranking Settori per Indice Ore Lavorate (Q", trim_imp_ult, "-", anno_imp_ult, ")")}
 knitr::include_graphics("output/imprese/grafici/25_ranking_settori_2025Q3.png")
 ```
 
-Il ranking al Q3-2025 mostra la gerarchia attuale dei settori per intensità lavorativa. I primi posti sono occupati da settori che hanno beneficiato della ripresa post-COVID e della transizione digitale.
+Il ranking al Q`r trim_imp_ult`-`r anno_imp_ult` mostra la gerarchia attuale dei settori per intensità lavorativa. I primi posti sono occupati da settori che hanno beneficiato della ripresa post-COVID e della transizione digitale.
 
 ### Heatmap Settori-Tempo
 
@@ -1017,7 +1038,7 @@ L'analisi stagionale conferma pattern ricorrenti: il Q1 presenta tipicamente i v
 
 ## Effetti Dimensionali
 
-Il gap tra imprese con 10+ dipendenti (W_GE10) e totale imprese (W_GE1) si è ridotto nel tempo, passando da circa -4% nel 2015 a circa 0% nel 2025. Questo indica una crescente quota delle imprese medio-grandi sul totale ore lavorate.
+Il gap tra imprese con 10+ dipendenti (W_GE10) e totale imprese (W_GE1) si è ridotto nel tempo, passando da circa -4% nel 2015 a circa 0% nel `r anno_imp_ult`. Questo indica una crescente quota delle imprese medio-grandi sul totale ore lavorate.
 
 ```{r fig-gap-dimensionale, fig.cap="Evoluzione del Gap Dimensionale (imprese 10+ vs totale) nel Tempo"}
 knitr::include_graphics("output/imprese/grafici/24_gap_W_GE10_W_GE1.png")
@@ -1033,10 +1054,10 @@ La riduzione del gap può riflettere: (a) maggiore crescita delle imprese medio-
 
 ## Fatti Stilizzati: Domanda di Lavoro
 
-1. **Crescita aggregata**: +`r sprintf("%.1f%%", sintesi_imprese$crescita_totale_2015_2025)` con CAGR `r sprintf("%.2f%%", sintesi_imprese$cagr_totale)`
+1. **Crescita aggregata**: +`r sprintf("%.1f%%", sintesi_imprese$crescita_totale)` con CAGR `r sprintf("%.2f%%", sintesi_imprese$cagr_totale)`
 2. **Shock COVID-19**: Contrazione Q2-2020, recupero in 3 anni (Q1-2023)
 3. **Eterogeneità settoriale**: Servizi consumo più volatili, professionali più stabili
-4. **Gap dimensionale in riduzione**: Verso 0% nel 2025
+4. **Gap dimensionale in riduzione**: Verso 0% nel `r anno_imp_ult`
 5. **Effetti persistenti COVID**: Alcune dinamiche strutturalmente alterate
 
 \newpage
@@ -1319,9 +1340,9 @@ Questo conferma che la trasmissione degli shock di produttività ai salari si è
 
 ## Coerenza VECM vs RACLI
 
-Un contributo metodologico centrale di questo studio è la validazione incrociata tra dati macro (VECM) e micro (RACLI) per il periodo sovrapposto 2014-2022.
+Un contributo metodologico centrale di questo studio è la validazione incrociata tra dati macro (VECM) e micro (RACLI) per il periodo sovrapposto `r paste0(anno_racli_min, "-", anno_racli_max)`.
 
-```{r fig-validazione, fig.cap="Validazione RACLI vs VECM (2014-2022)"}
+```{r fig-validazione, fig.cap=paste0("Validazione RACLI vs VECM (", anno_racli_min, "-", anno_racli_max, ")")}
 knitr::include_graphics("output/racli/grafici/16_validazione_racli_vecm.png")
 ```
 
@@ -1355,7 +1376,7 @@ L'analisi della convergenza provinciale verifica se le province più povere cres
 knitr::include_graphics("output/racli/grafici/13_sigma_convergenza.png")
 ```
 
-La sigma-convergenza misura l'evoluzione della dispersione salariale tra province. Un trend decrescente indica convergenza. I dati 2014-2022 mostrano una dispersione sostanzialmente stabile, con oscillazioni cicliche ma senza trend chiaro di riduzione. L'Italia non sta convergendo in termini di riduzione delle disuguaglianze territoriali.
+La sigma-convergenza misura l'evoluzione della dispersione salariale tra province. Un trend decrescente indica convergenza. I dati `r paste0(anno_racli_min, "-", anno_racli_max)` mostrano una dispersione sostanzialmente stabile, con oscillazioni cicliche ma senza trend chiaro di riduzione. L'Italia non sta convergendo in termini di riduzione delle disuguaglianze territoriali.
 
 ### Beta-Convergenza
 
@@ -1378,7 +1399,7 @@ L'analisi di clustering bidimensionale (salario mediano vs rapporto D9/D1) ident
 - **Cluster 1 (alto reddito)**: Province del Nord con salari elevati e dispersione medio-alta. Economia diversificata con compresenza di settori ad alta e bassa retribuzione.
 - **Cluster 2 (basso reddito)**: Province del Sud con salari bassi e dispersione contenuta. Economia meno diversificata, compressione verso il basso della distribuzione.
 
-La mobilità tra cluster è limitata: l'83% delle province mantiene la stessa appartenenza nell'intero periodo 2014-2022, confermando la persistenza delle disuguaglianze territoriali.
+La mobilità tra cluster è limitata: l'83% delle province mantiene la stessa appartenenza nell'intero periodo `r paste0(anno_racli_min, "-", anno_racli_max)`, confermando la persistenza delle disuguaglianze territoriali.
 
 ## Decomposizione Settoriale dei Parametri VECM
 
@@ -1475,10 +1496,10 @@ risultati <- data.frame(
     "Semi-elasticità disoccupazione",
     "Velocità aggiustamento trimestrale",
     "Correlazione VECM-RACLI",
-    "Gap di genere 2022",
+    paste0("Gap di genere ", anno_racli_max),
     "Premio educativo (laurea vs base)",
     "Divario Nord-Sud",
-    "Crescita ore lavorate 2015-2025"
+    paste0("Crescita ore lavorate 2015-", anno_imp_ult)
   ),
   Stima = c(
     "0.85 [0.70-0.90]",
@@ -1488,7 +1509,7 @@ risultati <- data.frame(
     "8.0%",
     "21.3%",
     "13.0%",
-    sprintf("%.1f%%", sintesi_imprese$crescita_totale_2015_2025)
+    sprintf("%.1f%%", sintesi_imprese$crescita_totale)
   ),
   Fonte = c("VECM", "VECM", "VECM", "Validazione", "RACLI", "RACLI", "RACLI", "Imprese")
 )
@@ -1559,7 +1580,7 @@ Rompere questo circolo richiede interventi coordinati su più fronti:
 1. **Dati VECM simulati 1995-2009**: Salari nominali pre-2010 calibrati, non osservati
 2. **Aggregazione nazionale**: Mascheramento eterogeneità intra-settoriale
 3. **Endogeneità residua**: Produttività potenzialmente endogena
-4. **Panel RACLI limitato**: 9 anni, non longitudinale individuale
+4. **Panel RACLI limitato**: `r anno_racli_max - anno_racli_min + 1` anni, non longitudinale individuale
 5. **Assunzioni parametriche**: TVP-VAR con random walk
 
 ## Direzioni di Ricerca Futura

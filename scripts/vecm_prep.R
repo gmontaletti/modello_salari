@@ -86,7 +86,7 @@ if (dag_available) {
 # Impostazioni grafiche
 theme_set(theme_minimal(base_size = 11))
 options(scipen = 999)
-set.seed(2025)
+set.seed(123)
 
 # Crea directory output
 output_dir <- "output/vecm"
@@ -104,7 +104,10 @@ if (!dir.exists(grafici_dir)) {
 
 # 2. Funzioni generazione dati -----
 
-generate_istat_data <- function(start_year = 1995, end_year = 2024) {
+generate_istat_data <- function(
+  start_year = 1995,
+  end_year = as.integer(format(Sys.Date(), "%Y")) - 1
+) {
   cat("\n[2] Generazione dataset basato su parametri ISTAT...\n")
 
   n_quarters <- (end_year - start_year + 1) * 4
@@ -295,12 +298,14 @@ exploratory_analysis <- function(data) {
 
   # Statistiche per sotto-periodi
   cat("\n--- Confronto tra periodi ---\n")
+  last_year <- max(data$year)
+  last_period_label <- paste0("2020-", last_year)
   period_stats <- data %>%
     mutate(
       periodo = case_when(
         year <= 2007 ~ "1995-2007",
         year <= 2019 ~ "2008-2019",
-        TRUE ~ "2020-2024"
+        TRUE ~ last_period_label
       )
     ) %>%
     group_by(periodo) %>%
@@ -1384,25 +1389,25 @@ plot_wage_productivity <- function(data) {
     data <- data %>% mutate(prod = exp(log_prod))
   }
 
+  last_year <- max(data$year)
+  last_period_label <- paste0("2020-", last_year)
   data_plot <- data %>%
     mutate(
       periodo = case_when(
         year <= 2007 ~ "1995-2007",
         year <= 2019 ~ "2008-2019",
-        TRUE ~ "2020-2024"
+        TRUE ~ last_period_label
       )
     )
 
+  period_colors <- setNames(
+    c("#2A9D8F", "#E9C46A", "#E63946"),
+    c("1995-2007", "2008-2019", last_period_label)
+  )
   ggplot(data_plot, aes(x = prod, y = w_real)) +
     geom_point(aes(color = periodo), alpha = 0.6, size = 2) +
     geom_smooth(method = "lm", se = TRUE, color = "#1D3557", fill = "#457B9D") +
-    scale_color_manual(
-      values = c(
-        "1995-2007" = "#2A9D8F",
-        "2008-2019" = "#E9C46A",
-        "2020-2024" = "#E63946"
-      )
-    ) +
+    scale_color_manual(values = period_colors) +
     labs(
       title = "Relazione Salari Reali - Produttività",
       subtitle = "Evidenza di stagnazione congiunta dal 2008",
@@ -1423,27 +1428,27 @@ plot_phillips_curve <- function(data) {
     data <- data %>% mutate(g_w_real = c(rep(NA, 4), diff(log_w_real, 4)))
   }
 
+  last_year <- max(data$year)
+  last_period_label <- paste0("2020-", last_year)
   data_plot <- data %>%
     filter(!is.na(g_w_real)) %>%
     mutate(
       periodo = case_when(
         year <= 2007 ~ "1995-2007",
         year <= 2019 ~ "2008-2019",
-        TRUE ~ "2020-2024"
+        TRUE ~ last_period_label
       )
     )
 
+  period_colors <- setNames(
+    c("#2A9D8F", "#E9C46A", "#E63946"),
+    c("1995-2007", "2008-2019", last_period_label)
+  )
   ggplot(data_plot, aes(x = u, y = g_w_real * 100)) +
     geom_point(aes(color = periodo), alpha = 0.6, size = 2) +
     geom_smooth(method = "lm", se = TRUE, color = "#1D3557", fill = "#457B9D") +
     geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
-    scale_color_manual(
-      values = c(
-        "1995-2007" = "#2A9D8F",
-        "2008-2019" = "#E9C46A",
-        "2020-2024" = "#E63946"
-      )
-    ) +
+    scale_color_manual(values = period_colors) +
     labs(
       title = "Curva di Phillips Salariale - Italia",
       subtitle = "Relazione disoccupazione-crescita salari reali",
@@ -1775,6 +1780,10 @@ if (file.exists(data_file)) {
   data_istat <- generate_istat_data()
 }
 
+# Variabili temporali a livello di script
+start_year <- min(data_istat$year)
+end_year <- max(data_istat$year)
+
 # Analisi esplorativa
 eda_results <- exploratory_analysis(data_istat)
 
@@ -2059,6 +2068,12 @@ cat(
 cat(
   "================================================================================\n"
 )
+
+saveRDS(
+  list(start_year = start_year, end_year = end_year),
+  file.path(output_dir, "metadata.rds")
+)
+cat("   File metadata:", file.path(output_dir, "metadata.rds"), "\n")
 
 cat("\n>>> Pipeline VECM completata con successo.\n")
 cat(

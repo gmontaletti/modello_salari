@@ -1,5 +1,5 @@
 ---
-title: "Indice Ore Lavorate nelle Imprese Italiane: Analisi 2015-2025"
+title: "`r paste0('Indice Ore Lavorate nelle Imprese Italiane: Analisi ', anno_primo, '-', anno_ult)`"
 subtitle: "Dinamiche Settoriali e Dimensionali dall'Indicatore ISTAT MHOUR_JV"
 author:
   - Giampaolo Montaletti
@@ -19,6 +19,16 @@ header-includes:
   - \usepackage{float}
   - \floatplacement{figure}{H}
 ---
+
+```{r metadata, include=FALSE}
+# 1. Metadati temporali (caricati prima del setup per uso nel YAML) -----
+meta_imp <- readRDS("output/imprese/metadata.rds")
+anno_ult <- meta_imp$anno_ult
+trim_ult <- meta_imp$trim_ult
+periodo_ult <- meta_imp$periodo_ult
+n_anni <- meta_imp$n_anni
+anno_primo <- 2015  # base year constant
+```
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -53,7 +63,7 @@ format_crescita <- function(value) {
 
 ## Contesto
 
-L'indice ore lavorate rappresenta un indicatore chiave del mercato del lavoro, complementare ai dati occupazionali. Questo rapporto presenta un'analisi completa dell'indice ISTAT MHOUR_JV (Monte Ore Lavorate) per le imprese italiane con dipendenti nel periodo 2015-2025.
+L'indice ore lavorate rappresenta un indicatore chiave del mercato del lavoro, complementare ai dati occupazionali. Questo rapporto presenta un'analisi completa dell'indice ISTAT MHOUR_JV (Monte Ore Lavorate) per le imprese italiane con dipendenti nel periodo `r paste0(anno_primo, "-", anno_ult)`.
 
 **NOTA METODOLOGICA IMPORTANTE**: MHOUR_JV è un **indice a base fissa** (2021=100), **non** un valore assoluto in migliaia di ore. I valori rappresentano l'evoluzione delle ore lavorate relative al 2021, consentendo confronti temporali e settoriali sulla dinamica del volume di lavoro.
 
@@ -68,7 +78,7 @@ L'analisi si basa sull'aggregato ufficiale ISTAT codice "0015" (TOTALE INDUSTRIA
 
 Questa analisi si propone di:
 
-1. **Documentare l'evoluzione dell'indice** MHOUR_JV nel periodo 2015-2025
+1. **Documentare l'evoluzione dell'indice** MHOUR_JV nel periodo `r paste0(anno_primo, "-", anno_ult)`
 2. **Quantificare l'impatto COVID-19** sulla dinamica del volume di lavoro settoriale
 3. **Identificare pattern settoriali** in termini di crescita, volatilità e shock
 4. **Analizzare effetti dimensionali** confrontando W_GE1 e W_GE10
@@ -78,7 +88,7 @@ Questa analisi si propone di:
 
 I dati provengono dal dataset ISTAT `imprese_con_dipendenti` e coprono:
 
-- **Periodo**: 2015-Q1 to 2025-Q3 (43 trimestri, frequenza quarterly)
+- **Periodo**: `r paste0(anno_primo, "-Q1 to ", anno_ult, "-Q", trim_ult)` (frequenza quarterly)
 - **Indicatore**: MHOUR\_JV (indice ore lavorate, base 2021=100)
 - **Versioni**: MHOUR\_JV_2021 (usata per questo report, dati destagionalizzati)
 - **Dimensioni**: 16 settori NACE macro (lettere B-S) + aggregati ufficiali
@@ -90,7 +100,7 @@ I dati provengono dal dataset ISTAT `imprese_con_dipendenti` e coprono:
 sintesi <- readRDS("output/imprese/sintesi_imprese.rds")
 totale_economia <- readRDS("output/imprese/totale_economia_0015.rds")
 stat_settori <- readRDS("output/imprese/stat_descrittive_settori.rds")
-ranking_settori <- readRDS("output/imprese/ranking_settori_indice_2025Q3.rds")
+ranking_settori <- readRDS("output/imprese/ranking_settori_indice_ultimo.rds")
 decomp_crescita <- readRDS("output/imprese/decomposizione_crescita_settori.rds")
 decomp_totale <- readRDS("output/imprese/decomposizione_crescita_totale.rds")
 volatilita_settori <- readRDS("output/imprese/volatilita_settori.rds")
@@ -105,9 +115,9 @@ I dati provengono dalle rilevazioni ISTAT sulle ore lavorate nelle imprese con d
 
 - **MHOUR\_JV_1**: periodo 2003-Q3 to 2017-Q4 (metodologia iniziale)
 - **MHOUR\_JV_2**: periodo 2015-Q1 to 2023-Q4 (revisione intermedia)
-- **MHOUR\_JV_2021**: periodo 2015-Q1 to 2025-Q3 (metodologia corrente, **base 2021=100**)
+- **MHOUR\_JV_2021**: periodo `r paste0(anno_primo, "-Q1 to ", anno_ult, "-Q", trim_ult)` (metodologia corrente, **base 2021=100**)
 
-Per garantire coerenza temporale, questo rapporto utilizza **esclusivamente MHOUR\_JV_2021** per l'intero periodo 2015-2025. I dati sono **destagionalizzati** (ADJUSTMENT = "Y") per rimuovere pattern stagionali ricorrenti.
+Per garantire coerenza temporale, questo rapporto utilizza **esclusivamente MHOUR\_JV_2021** per l'intero periodo `r paste0(anno_primo, "-", anno_ult)`. I dati sono **destagionalizzati** (ADJUSTMENT = "Y") per rimuovere pattern stagionali ricorrenti.
 
 ## Classificazione Settoriale
 
@@ -134,7 +144,7 @@ Le elaborazioni principali includono:
 
 - **Variazioni temporali**: QoQ (quarter-on-quarter) e YoY (year-on-year)
 - **Volatilità settoriale**: deviazione standard delle variazioni trimestrali
-- **CAGR**: Tasso di crescita annuale composto 2015-2025 (10.5 anni)
+- **CAGR**: Tasso di crescita annuale composto `r paste0(anno_primo, "-", anno_ult)` (`r n_anni` anni)
 - **Gap dimensionale**: differenziale percentuale W\_GE10 vs W\_GE1
 
 # Risultati Aggregati
@@ -142,14 +152,14 @@ Le elaborazioni principali includono:
 ## Evoluzione Nazionale
 
 ```{r tab-sintesi}
-cat(sprintf("**Indice Totale Economia 2025-Q3**: %.1f (base 2021=100)\n", sintesi$indice_totale_2025Q3))
-cat(sprintf("**Variazione 2015-2025**: %s\n", format_crescita(sintesi$crescita_totale_2015_2025)))
-cat(sprintf("**CAGR 2015-2025**: %.2f%%\n\n", sintesi$cagr_totale))
+cat(sprintf("**Indice Totale Economia %s**: %.1f (base 2021=100)\n", periodo_ult, sintesi$indice_totale_ultimo))
+cat(sprintf("**Variazione %s-%s**: %s\n", anno_primo, anno_ult, format_crescita(sintesi$crescita_totale)))
+cat(sprintf("**CAGR %s-%s**: %.2f%%\n\n", anno_primo, anno_ult, sintesi$cagr_totale))
 ```
 
-L'indice MHOUR_JV per il totale economia (codice 0015, W\_GE1) mostra **`r format_crescita(sintesi$crescita_totale_2015_2025)`** nel periodo 2015-Q1 to 2025-Q3, corrispondente a un CAGR del **`r sprintf("%.2f%%", sintesi$cagr_totale)`**.
+L'indice MHOUR_JV per il totale economia (codice 0015, W\_GE1) mostra **`r format_crescita(sintesi$crescita_totale)`** nel periodo `r paste0(anno_primo, "-Q1 to ", anno_ult, "-Q", trim_ult)`, corrispondente a un CAGR del **`r sprintf("%.2f%%", sintesi$cagr_totale)`**.
 
-Il valore 2025-Q3 di **`r sprintf("%.1f", sintesi$indice_totale_2025Q3)`** indica che le ore lavorate sono aumentate del **`r sprintf("%.1f%%", sintesi$indice_totale_2025Q3 - 100)`** rispetto al 2021.
+Il valore `r periodo_ult` di **`r sprintf("%.1f", sintesi$indice_totale_ultimo)`** indica che le ore lavorate sono aumentate del **`r sprintf("%.1f%%", sintesi$indice_totale_ultimo - 100)`** rispetto al 2021.
 
 ```{r fig-evoluzione, fig.cap="Evoluzione indice ore lavorate totale economia (codice 0015). W\\_GE1 (imprese con 1 o più dipendenti) e W\\_GE10 (imprese con 10 o più dipendenti, sottoinsieme di W\\_GE1).", fig.width=10, fig.height=6}
 knitr::include_graphics("output/imprese/grafici/21_evoluzione_indice_totale.png")
@@ -175,7 +185,7 @@ Le variazioni trimestrali oscillano tra -5% e +5%, con picchi negativi durante C
 
 # Analisi Settoriale
 
-## Ranking Settori 2025-Q3
+## Ranking Settori `r periodo_ult`
 
 ```{r tab-ranking}
 ranking_top10 <- ranking_settori %>%
@@ -183,36 +193,36 @@ ranking_top10 <- ranking_settori %>%
   select(settore_macro_label, ore_migliaia) %>%
   rename(
     "Settore" = settore_macro_label,
-    "Indice 2025-Q3" = ore_migliaia
+    !!paste0("Indice ", periodo_ult) := ore_migliaia
   )
 
 kable(
   ranking_top10,
   format = "latex",
   booktabs = TRUE,
-  caption = "Top 10 settori per indice ore lavorate 2025-Q3 (W\\_GE1)",
+  caption = paste0("Top 10 settori per indice ore lavorate ", periodo_ult, " (W\\_GE1)"),
   digits = 1
 ) %>%
   kable_styling(latex_options = c("hold_position"))
 ```
 
-Il settore con l'indice più elevato nel 2025-Q3 è **`r sintesi$settore_max_indice_2025`** (indice `r ranking_settori$ore_migliaia[1]`), seguito da servizi di alloggio/ristorazione e istruzione. Questi settori mostrano una forte espansione post-COVID, superando significativamente i livelli del 2021.
+Il settore con l'indice più elevato nel `r periodo_ult` è **`r sintesi$settore_max_indice_ultimo`** (indice `r ranking_settori$ore_migliaia[1]`), seguito da servizi di alloggio/ristorazione e istruzione. Questi settori mostrano una forte espansione post-COVID, superando significativamente i livelli del 2021.
 
-```{r fig-ranking, fig.cap="Ranking settori per indice ore 2025-Q3. Top 8 e Bottom 8 settori mostrano forte eterogeneità settoriale.", fig.width=10, fig.height=8}
-knitr::include_graphics("output/imprese/grafici/25_ranking_settori_2025Q3.png")
+```{r fig-ranking, fig.cap=paste0("Ranking settori per indice ore ", periodo_ult, ". Top 8 e Bottom 8 settori mostrano forte eterogeneità settoriale."), fig.width=10, fig.height=8}
+knitr::include_graphics("output/imprese/grafici/25_ranking_settori_ultimo.png")
 ```
 
-## Crescita Settoriale 2015-2025
+## Crescita Settoriale `r paste0(anno_primo, "-", anno_ult)`
 
 ```{r tab-crescita-settoriale}
 crescita_top5 <- decomp_crescita %>%
   arrange(desc(var_percentuale)) %>%
   head(5) %>%
-  select(settore_macro_label, indice_2015Q1, indice_2025Q3, var_percentuale, cagr) %>%
+  select(settore_macro_label, indice_primo, indice_ultimo, var_percentuale, cagr) %>%
   rename(
     "Settore" = settore_macro_label,
-    "Indice 2015-Q1" = indice_2015Q1,
-    "Indice 2025-Q3" = indice_2025Q3,
+    !!paste0("Indice ", anno_primo, "-Q1") := indice_primo,
+    !!paste0("Indice ", periodo_ult) := indice_ultimo,
     "Variazione %" = var_percentuale,
     "CAGR %" = cagr
   )
@@ -221,7 +231,7 @@ kable(
   crescita_top5,
   format = "latex",
   booktabs = TRUE,
-  caption = "Top 5 settori per crescita indice 2015-2025 (W\\_GE1)",
+  caption = paste0("Top 5 settori per crescita indice ", anno_primo, "-", anno_ult, " (W\\_GE1)"),
   digits = c(0, 1, 1, 1, 2)
 ) %>%
   kable_styling(latex_options = c("hold_position", "scale_down"))
@@ -229,11 +239,11 @@ kable(
 
 Il settore con la massima crescita è **`r sintesi$settore_max_crescita`**, mentre il minimo è **`r sintesi$settore_min_crescita`**.
 
-```{r fig-crescita, fig.cap="Crescita settoriale 2015-Q1 to 2025-Q3. Forte eterogeneità tra settori, con dinamiche post-COVID divergenti.", fig.width=10, fig.height=8}
+```{r fig-crescita, fig.cap=paste0("Crescita settoriale ", anno_primo, "-Q1 to ", anno_ult, "-Q", trim_ult, ". Forte eterogeneità tra settori, con dinamiche post-COVID divergenti."), fig.width=10, fig.height=8}
 knitr::include_graphics("output/imprese/grafici/23_crescita_settoriale.png")
 ```
 
-```{r fig-cagr, fig.cap="CAGR settoriale 2015-2025. Tassi di crescita annuali composti mostrano pattern strutturali.", fig.width=10, fig.height=8}
+```{r fig-cagr, fig.cap=paste0("CAGR settoriale ", anno_primo, "-", anno_ult, ". Tassi di crescita annuali composti mostrano pattern strutturali."), fig.width=10, fig.height=8}
 knitr::include_graphics("output/imprese/grafici/31_cagr_settoriale.png")
 ```
 
@@ -282,7 +292,7 @@ L'impatto settoriale del COVID-19 mostra forte eterogeneità. I settori dei serv
 
 ## Gap W\_GE10 vs W\_GE1
 
-Il differenziale tra imprese con 10 o più dipendenti (W\_GE10) e imprese con 1 o più dipendenti (W\_GE1) mostra un gap medio di **`r sprintf("%.2f%%", sintesi$gap_W_GE10_medio)`** nel periodo 2015-2025.
+Il differenziale tra imprese con 10 o più dipendenti (W\_GE10) e imprese con 1 o più dipendenti (W\_GE1) mostra un gap medio di **`r sprintf("%.2f%%", sintesi$gap_W_GE10_medio)`** nel periodo `r paste0(anno_primo, "-", anno_ult)`.
 
 **INTERPRETAZIONE CORRETTA**: Poiché W\_GE10 (imprese ≥10 dipendenti) è un **sottoinsieme** di W\_GE1 (imprese ≥1 dipendente), il gap misura la quota relativa delle imprese medio-grandi sul totale delle ore lavorate.
 
@@ -290,10 +300,10 @@ Un gap negativo significa che l'indice delle imprese ≥10 dipendenti è inferio
 
 ```{r tab-gap-dimensionale}
 gap_stats <- data.frame(
-  Metrica = c("Gap medio periodo", "Gap 2025-Q3", "Gap min", "Gap max"),
+  Metrica = c("Gap medio periodo", paste0("Gap ", periodo_ult), "Gap min", "Gap max"),
   Valore = c(
     sprintf("%.2f%%", sintesi$gap_W_GE10_medio),
-    sprintf("%.2f%%", sintesi$gap_W_GE10_2025Q3),
+    sprintf("%.2f%%", sintesi$gap_W_GE10_ultimo),
     sprintf("%.2f%%", min(confronto_dimensione$diff_percentuale)),
     sprintf("%.2f%%", max(confronto_dimensione$diff_percentuale))
   )
@@ -312,15 +322,15 @@ kable(
 knitr::include_graphics("output/imprese/grafici/24_gap_W_GE10_W_GE1.png")
 ```
 
-Il gap si è ridotto nel tempo, passando da circa -4% nel 2015 a circa 0% nel 2025, suggerendo che la quota delle imprese con 10 o più dipendenti sul totale ore lavorate è aumentata nel periodo.
+Il gap si è ridotto nel tempo, passando da circa -4% nel `r anno_primo` a circa 0% nel `r anno_ult`, suggerendo che la quota delle imprese con 10 o più dipendenti sul totale ore lavorate è aumentata nel periodo.
 
 # Sintesi e Conclusioni
 
 ## Fatti Stilizzati
 
-L'analisi dell'indice MHOUR_JV per il periodo 2015-2025 evidenzia i seguenti fatti stilizzati:
+L'analisi dell'indice MHOUR_JV per il periodo `r paste0(anno_primo, "-", anno_ult)` evidenzia i seguenti fatti stilizzati:
 
-1. **Crescita aggregata**: Il totale economia (codice 0015, W\_GE1) mostra **`r format_crescita(sintesi$crescita_totale_2015_2025)`** con CAGR del `r sprintf("%.2f%%", sintesi$cagr_totale)`
+1. **Crescita aggregata**: Il totale economia (codice 0015, W\_GE1) mostra **`r format_crescita(sintesi$crescita_totale)`** con CAGR del `r sprintf("%.2f%%", sintesi$cagr_totale)`
 
 2. **Shock COVID-19**: Forte contrazione nel 2020-Q2, con recupero ai livelli pre-COVID nel 2023-Q1 (circa 3 anni)
 
@@ -369,7 +379,7 @@ L'indicatore ISTAT MHOUR_JV ha subito revisioni metodologiche nel tempo:
 |----------|---------------------|------|
 | MHOUR\_JV_1 | 2003-Q3 to 2017-Q4 | Metodologia iniziale |
 | MHOUR\_JV_2 | 2015-Q1 to 2023-Q4 | Revisione intermedia |
-| MHOUR\_JV_2021 | 2015-Q1 to 2025-Q3 | **Base 2021=100**, metodologia corrente |
+| MHOUR\_JV_2021 | `r paste0(anno_primo, "-Q1 to ", anno_ult, "-Q", trim_ult)` | **Base 2021=100**, metodologia corrente |
 
 Questo rapporto utilizza esclusivamente MHOUR\_JV_2021 per garantire coerenza metodologica.
 
@@ -381,7 +391,7 @@ Per evitare discontinuità, lo script di preparazione dati (`09_prepara_imprese.
 - **Priorità 2**: MHOUR\_JV_2
 - **Priorità 3**: MHOUR\_JV_1
 
-Nel periodo 2015-2025 analizzato, solo MHOUR\_JV_2021 è disponibile e viene utilizzato uniformemente.
+Nel periodo `r paste0(anno_primo, "-", anno_ult)` analizzato, solo MHOUR\_JV_2021 è disponibile e viene utilizzato uniformemente.
 
 ## Destagionalizzazione
 
@@ -420,9 +430,9 @@ I dati utilizzano la serie con ADJUSTMENT = "Y" (seasonally adjusted), che rimuo
 
 ### CAGR (Compound Annual Growth Rate)
 
-$$CAGR = \left(\frac{V_{2025Q3}}{V_{2015Q1}}\right)^{\frac{1}{10.5}} - 1$$
+$$CAGR = \left(\frac{V_{ultimo}}{V_{primo}}\right)^{\frac{1}{`r n_anni`}} - 1$$
 
-dove 10.5 anni è la durata del periodo 2015-Q1 to 2025-Q3.
+dove `r n_anni` anni è la durata del periodo `r paste0(anno_primo, "-Q1 to ", anno_ult, "-Q", trim_ult)`.
 
 ### Gap Dimensionale
 

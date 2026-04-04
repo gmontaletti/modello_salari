@@ -32,7 +32,9 @@
       "Bash(Rscript -e \"rmarkdown::render\\('reports/eta.Rmd'\\)\" 2>&1)",
       "Bash(open:*)",
       "Bash(Rscript -e \"rmarkdown::render\\(''''reports/eta.Rmd''''\\)\")",
-      "Bash(xargs cat:*)"
+      "Bash(xargs cat:*)",
+      "WebFetch(domain:www.istat.it)",
+      "WebFetch(domain:esploradati.istat.it)"
     ]
   }
 }

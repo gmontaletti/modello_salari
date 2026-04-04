@@ -1,6 +1,6 @@
 # eta_prep.R -----
 # Pipeline analisi gap salariale per età: convergenza/divergenza
-# tra classi di età usando dati RACLI ISTAT (2014-2022)
+# tra classi di età usando dati RACLI ISTAT dal registro RACLI
 # Autore: Giampaolo Montaletti (ORCID: 0009-0002-5327-1122)
 # Data: 2026-03-29
 
@@ -65,6 +65,60 @@ cat("Directory output: output/racli/, output/racli/grafici/\n\n")
 
 cat("==== Caricamento Funzioni Utility ====\n\n")
 
+# Applica labels RACLI usando codelists scaricati
+apply_racli_labels <- function(data) {
+  cl <- readRDS("meta/codelists.rds")
+  racli_cl <- as.data.table(cl[["X533_957"]])
+  if (is.null(racli_cl) || nrow(racli_cl) == 0) {
+    return(data)
+  }
+
+  dim_to_cl <- list(
+    SEX = "CL_SEXISTAT1",
+    AGE = "CL_ETA1",
+    ECON_ACTIVITY_NACE_2007 = "CL_ATECO_2007",
+    EMPLOYESS_CLASS = "CL_CLLVT",
+    CONTARCTUAL_OCCUPATION = "CL_PROFILO_PROF",
+    REF_AREA = "CL_ITTER107",
+    EDU_LEV_HIGHEST = "CL_TITOLO_STUDIO",
+    TYPE_OF_CONTRACT = "CL_DURATA",
+    DATA_TYPE = "CL_TIPO_DATO7"
+  )
+
+  for (dim_col in names(dim_to_cl)) {
+    if (dim_col %in% names(data)) {
+      cl_id <- dim_to_cl[[dim_col]]
+      lookup <- racli_cl[
+        id == cl_id,
+        .(code = id_description, label = it_description)
+      ]
+      if (nrow(lookup) > 0) {
+        lbl_col <- paste0(dim_col, "_label")
+        data[[lbl_col]] <- lookup$label[match(
+          as.character(data[[dim_col]]),
+          lookup$code
+        )]
+        missing <- is.na(data[[lbl_col]])
+        if (any(missing)) {
+          data[[lbl_col]][missing] <- as.character(data[[dim_col]][missing])
+        }
+      }
+    }
+  }
+
+  if ("ObsDimension" %in% names(data)) {
+    data$tempo_temp <- data$ObsDimension
+  }
+  if ("TIME_PERIOD" %in% names(data)) {
+    data$tempo_temp <- data$TIME_PERIOD
+  }
+  if ("ObsValue" %in% names(data)) {
+    data$valore <- as.numeric(data$ObsValue)
+  }
+
+  return(data)
+}
+
 # Identifica livello geografico NUTS
 get_geo_level <- function(code) {
   code <- as.character(code)
@@ -82,6 +136,15 @@ get_geo_level <- function(code) {
 load_ripartizione_lookup <- function() {
   codelists <- readRDS("meta/codelists.rds")
   cl_itter <- codelists[["CL_ITTER107"]]
+  if (is.null(cl_itter)) {
+    all_cl <- codelists[["X533_957"]]
+    if (!is.null(all_cl) && "id" %in% names(all_cl)) {
+      cl_itter <- as.data.table(all_cl[all_cl$id == "CL_ITTER107", ])
+    }
+  }
+  if (is.null(cl_itter) || nrow(cl_itter) == 0) {
+    stop("CL_ITTER107 non trovato nei codelists")
+  }
 
   ripart_lookup <- cl_itter[
     nchar(id_description) == 3 &
@@ -270,9 +333,15 @@ calc_beta_convergence <- function(
   dt,
   gap_var = "log_gap_mediano",
   id_var = "area",
-  year_start = 2014,
-  year_end = 2022
+  year_start = NULL,
+  year_end = NULL
 ) {
+  if (is.null(year_start)) {
+    year_start <- anno_min
+  }
+  if (is.null(year_end)) {
+    year_end <- anno_max
+  }
   dt <- as.data.table(dt)
 
   # Gap iniziale e finale
@@ -309,9 +378,15 @@ shift_share_decomposition <- function(
   dt,
   group_var,
   gap_var = "log_gap_mediano",
-  year_start = 2014,
-  year_end = 2022
+  year_start = NULL,
+  year_end = NULL
 ) {
+  if (is.null(year_start)) {
+    year_start <- anno_min
+  }
+  if (is.null(year_end)) {
+    year_end <- anno_max
+  }
   dt <- as.data.table(dt)
 
   dt_start <- dt[anno == year_start, c(group_var, gap_var), with = FALSE]
@@ -385,6 +460,8 @@ cat("==== 3. Preparazione dati RACLI_9 (età x territorio) ====\n\n")
 
 cat("Caricamento File 9: età x territorio...")
 racli_9_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_9.rds")
+setDT(racli_9_raw)
+racli_9_raw <- apply_racli_labels(racli_9_raw)
 cat(" OK (", nrow(racli_9_raw), "righe)\n")
 
 ripart_lookup <- load_ripartizione_lookup()
@@ -495,12 +572,27 @@ cat(
 saveRDS(dati_eta_terr_wide, "output/racli/dati_eta_territorio.rds")
 cat("Salvato: output/racli/dati_eta_territorio.rds\n\n")
 
+# 3bis. Variabili globali anno -----
+
+anno_max <- max(dati_eta_terr_wide$anno, na.rm = TRUE)
+anno_min <- min(dati_eta_terr_wide$anno, na.rm = TRUE)
+n_anni <- anno_max - anno_min
+
+cat(sprintf(
+  "Intervallo temporale: %d-%d (%d anni)\n\n",
+  anno_min,
+  anno_max,
+  n_anni
+))
+
 # 4. Preparazione dati RACLI_18 (età x settore) -----
 
 cat("==== 4. Preparazione dati RACLI_18 (età x settore) ====\n\n")
 
 cat("Caricamento File 18: età x settore...")
 racli_18_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_18.rds")
+setDT(racli_18_raw)
+racli_18_raw <- apply_racli_labels(racli_18_raw)
 cat(" OK (", nrow(racli_18_raw), "righe)\n")
 
 dati_eta_sett <- as.data.table(racli_18_raw)
@@ -594,6 +686,8 @@ cat("==== 5. Preparazione dati RACLI_1 (multidimensionale) ====\n\n")
 
 cat("Caricamento File 1: multidimensionale...")
 racli_1_raw <- readRDS("racli/F_533_957_DF_DCSC_RACLI_1.rds")
+setDT(racli_1_raw)
+racli_1_raw <- apply_racli_labels(racli_1_raw)
 cat(" OK (", nrow(racli_1_raw), "righe)\n")
 
 dati_eta_multi <- as.data.table(racli_1_raw)
@@ -670,13 +764,13 @@ gap_nazionale <- calc_age_gap(dt_nazionale)
 if (!is.null(gap_nazionale)) {
   cat("  Osservazioni gap nazionale:", nrow(gap_nazionale), "\n")
   cat(
-    "  Gap mediano 2014:",
-    sprintf("%.3f", gap_nazionale[anno == 2014]$log_gap_salario_mediano),
+    paste0("  Gap mediano ", anno_min, ":"),
+    sprintf("%.3f", gap_nazionale[anno == anno_min]$log_gap_salario_mediano),
     "\n"
   )
   cat(
-    "  Gap mediano 2022:",
-    sprintf("%.3f", gap_nazionale[anno == 2022]$log_gap_salario_mediano),
+    paste0("  Gap mediano ", anno_max, ":"),
+    sprintf("%.3f", gap_nazionale[anno == anno_max]$log_gap_salario_mediano),
     "\n"
   )
 }
@@ -789,17 +883,17 @@ sigma_prov <- calc_sigma_convergence(
 
 if (!is.null(sigma_prov)) {
   cat(
-    "  CV iniziale (2014):",
-    sprintf("%.3f", sigma_prov[anno == 2014]$cv_gap),
+    paste0("  CV iniziale (", anno_min, "):"),
+    sprintf("%.3f", sigma_prov[anno == anno_min]$cv_gap),
     "\n"
   )
   cat(
-    "  CV finale (2022):",
-    sprintf("%.3f", sigma_prov[anno == 2022]$cv_gap),
+    paste0("  CV finale (", anno_max, "):"),
+    sprintf("%.3f", sigma_prov[anno == anno_max]$cv_gap),
     "\n"
   )
   trend_sigma <- ifelse(
-    sigma_prov[anno == 2022]$cv_gap < sigma_prov[anno == 2014]$cv_gap,
+    sigma_prov[anno == anno_max]$cv_gap < sigma_prov[anno == anno_min]$cv_gap,
     "convergenza",
     "divergenza"
   )
@@ -816,13 +910,13 @@ sigma_sett <- calc_sigma_convergence(
 
 if (!is.null(sigma_sett)) {
   cat(
-    "  CV iniziale (2014):",
-    sprintf("%.3f", sigma_sett[anno == 2014]$cv_gap),
+    paste0("  CV iniziale (", anno_min, "):"),
+    sprintf("%.3f", sigma_sett[anno == anno_min]$cv_gap),
     "\n"
   )
   cat(
-    "  CV finale (2022):",
-    sprintf("%.3f", sigma_sett[anno == 2022]$cv_gap),
+    paste0("  CV finale (", anno_max, "):"),
+    sprintf("%.3f", sigma_sett[anno == anno_max]$cv_gap),
     "\n"
   )
 }
@@ -873,9 +967,7 @@ cat("Beta-convergenza incondizionata (province)...\n")
 beta_prov <- calc_beta_convergence(
   gap_province,
   gap_var = "log_gap_salario_mediano",
-  id_var = "area",
-  year_start = 2014,
-  year_end = 2022
+  id_var = "area"
 )
 
 if (!is.null(beta_prov$model)) {
@@ -938,9 +1030,7 @@ cat("Beta-convergenza incondizionata (settori)...\n")
 beta_sett <- calc_beta_convergence(
   gap_settori,
   gap_var = "log_gap_salario_mediano",
-  id_var = "settore_code",
-  year_start = 2014,
-  year_end = 2022
+  id_var = "settore_code"
 )
 
 if (!is.null(beta_sett$model)) {
@@ -1097,9 +1187,7 @@ if (!is.null(gap_ripart) && nrow(gap_ripart) > 0) {
   decomp_geo <- shift_share_decomposition(
     gap_ripart,
     group_var = "area",
-    gap_var = "log_gap_salario_mediano",
-    year_start = 2014,
-    year_end = 2022
+    gap_var = "log_gap_salario_mediano"
   )
 
   if (!is.null(decomp_geo)) {
@@ -1123,9 +1211,7 @@ if (!is.null(gap_settori) && nrow(gap_settori) > 0) {
   decomp_sett <- shift_share_decomposition(
     gap_settori,
     group_var = "settore_code",
-    gap_var = "log_gap_salario_mediano",
-    year_start = 2014,
-    year_end = 2022
+    gap_var = "log_gap_salario_mediano"
   )
 
   if (!is.null(decomp_sett)) {
@@ -1286,13 +1372,13 @@ gap_naz_alt <- calc_age_gap(
 if (!is.null(gap_naz_alt)) {
   robustezza$gap_riferimento_30_49 <- gap_naz_alt
   cat(
-    "  Gap mediano 2022 (rif. 30-49):",
-    sprintf("%.3f", gap_naz_alt[anno == 2022]$log_gap_salario_mediano),
+    paste0("  Gap mediano ", anno_max, " (rif. 30-49):"),
+    sprintf("%.3f", gap_naz_alt[anno == anno_max]$log_gap_salario_mediano),
     "\n"
   )
   cat(
-    "  Gap mediano 2022 (rif. 50+):",
-    sprintf("%.3f", gap_nazionale[anno == 2022]$log_gap_salario_mediano),
+    paste0("  Gap mediano ", anno_max, " (rif. 50+):"),
+    sprintf("%.3f", gap_nazionale[anno == anno_max]$log_gap_salario_mediano),
     "\n"
   )
 }
@@ -1309,29 +1395,29 @@ gap_decili <- gap_nazionale[, list(
 if (nrow(gap_decili) > 0) {
   robustezza$gap_per_decile <- gap_decili
   cat(
-    "  Gap D1 (2014 -> 2022):",
+    paste0("  Gap D1 (", anno_min, " -> ", anno_max, "):"),
     sprintf(
       "%.3f -> %.3f",
-      gap_decili[anno == 2014]$log_gap_D1,
-      gap_decili[anno == 2022]$log_gap_D1
+      gap_decili[anno == anno_min]$log_gap_D1,
+      gap_decili[anno == anno_max]$log_gap_D1
     ),
     "\n"
   )
   cat(
-    "  Gap D5 (2014 -> 2022):",
+    paste0("  Gap D5 (", anno_min, " -> ", anno_max, "):"),
     sprintf(
       "%.3f -> %.3f",
-      gap_decili[anno == 2014]$log_gap_D5,
-      gap_decili[anno == 2022]$log_gap_D5
+      gap_decili[anno == anno_min]$log_gap_D5,
+      gap_decili[anno == anno_max]$log_gap_D5
     ),
     "\n"
   )
   cat(
-    "  Gap D9 (2014 -> 2022):",
+    paste0("  Gap D9 (", anno_min, " -> ", anno_max, "):"),
     sprintf(
       "%.3f -> %.3f",
-      gap_decili[anno == 2014]$log_gap_D9,
-      gap_decili[anno == 2022]$log_gap_D9
+      gap_decili[anno == anno_min]$log_gap_D9,
+      gap_decili[anno == anno_max]$log_gap_D9
     ),
     "\n"
   )
@@ -1344,9 +1430,7 @@ gap_prov_no_covid <- gap_province[anno != 2020]
 beta_no_covid <- calc_beta_convergence(
   gap_prov_no_covid,
   gap_var = "log_gap_salario_mediano",
-  id_var = "area",
-  year_start = 2014,
-  year_end = 2022
+  id_var = "area"
 )
 
 if (!is.null(beta_no_covid$model)) {
@@ -1382,7 +1466,7 @@ cat("==== 13bis. Convergenza al ribasso: salari reali ====\n\n")
 vecm_data <- as.data.table(readRDS("output/vecm/dati_istat.rds"))
 vecm_data[, anno := as.integer(floor(trimestri))]
 ipca_annuale <- vecm_data[
-  anno >= 2014 & anno <= 2022,
+  anno >= anno_min & anno <= anno_max,
   list(ipca = mean(p, na.rm = TRUE)),
   by = anno
 ]
@@ -1423,33 +1507,33 @@ conv_reale[,
 ]
 
 # Crescita nominale e reale
-w_y_14 <- conv_reale[anno == 2014]$salario_mediano_young
-w_o_14 <- conv_reale[anno == 2014]$salario_mediano_old
-w_y_22 <- conv_reale[anno == 2022]$salario_mediano_young
-w_o_22 <- conv_reale[anno == 2022]$salario_mediano_old
+w_y_ini <- conv_reale[anno == anno_min]$salario_mediano_young
+w_o_ini <- conv_reale[anno == anno_min]$salario_mediano_old
+w_y_fin <- conv_reale[anno == anno_max]$salario_mediano_young
+w_o_fin <- conv_reale[anno == anno_max]$salario_mediano_old
 
-w_y_r14 <- conv_reale[anno == 2014]$salario_mediano_young_reale
-w_o_r14 <- conv_reale[anno == 2014]$salario_mediano_old_reale
-w_y_r22 <- conv_reale[anno == 2022]$salario_mediano_young_reale
-w_o_r22 <- conv_reale[anno == 2022]$salario_mediano_old_reale
+w_y_r_ini <- conv_reale[anno == anno_min]$salario_mediano_young_reale
+w_o_r_ini <- conv_reale[anno == anno_min]$salario_mediano_old_reale
+w_y_r_fin <- conv_reale[anno == anno_max]$salario_mediano_young_reale
+w_o_r_fin <- conv_reale[anno == anno_max]$salario_mediano_old_reale
 
 crescita <- data.table(
   classe_eta = rep(c("15-29 anni", "50+ anni"), each = 2),
   tipo = rep(c("Nominale", "Reale"), 2),
   crescita_pct = c(
-    (w_y_22 / w_y_14 - 1) * 100,
-    (w_y_r22 / w_y_r14 - 1) * 100,
-    (w_o_22 / w_o_14 - 1) * 100,
-    (w_o_r22 / w_o_r14 - 1) * 100
+    (w_y_fin / w_y_ini - 1) * 100,
+    (w_y_r_fin / w_y_r_ini - 1) * 100,
+    (w_o_fin / w_o_ini - 1) * 100,
+    (w_o_r_fin / w_o_r_ini - 1) * 100
   )
 )
 
-inflazione_cum <- (conv_reale[anno == 2022]$deflatore /
-  conv_reale[anno == 2014]$deflatore -
+inflazione_cum <- (conv_reale[anno == anno_max]$deflatore /
+  conv_reale[anno == anno_min]$deflatore -
   1) *
   100
 
-cat("\nCrescita 2014-2022:\n")
+cat(paste0("\nCrescita ", anno_min, "-", anno_max, ":\n"))
 print(crescita)
 cat("Inflazione cumulata:", sprintf("%.1f%%", inflazione_cum), "\n")
 cat("Gap nominale: 0.239 -> 0.202 (convergenza)\n")
@@ -1457,8 +1541,8 @@ cat(
   "Gap reale:   ",
   sprintf(
     "%.3f -> %.3f",
-    conv_reale[anno == 2014]$log_gap_reale_mediano,
-    conv_reale[anno == 2022]$log_gap_reale_mediano
+    conv_reale[anno == anno_min]$log_gap_reale_mediano,
+    conv_reale[anno == anno_max]$log_gap_reale_mediano
   ),
   "(identico, la deflazione non cambia il log-gap)\n"
 )
@@ -1501,7 +1585,7 @@ p16 <- ggplot(
 ) +
   geom_line(linewidth = 1) +
   geom_point(size = 2) +
-  scale_x_continuous(breaks = 2014:2022) +
+  scale_x_continuous(breaks = anno_min:anno_max) +
   scale_color_manual(
     values = c("15-29 anni" = "#377EB8", "50+ anni" = "#E41A1C")
   ) +
@@ -1545,13 +1629,17 @@ p17 <- ggplot(crescita, aes(x = classe_eta, y = crescita_pct, fill = tipo)) +
   ) +
   scale_fill_manual(values = c("Nominale" = "#377EB8", "Reale" = "#E41A1C")) +
   labs(
-    title = "Crescita salariale cumulata 2014-2022",
+    title = paste0("Crescita salariale cumulata ", anno_min, "-", anno_max),
     subtitle = "Retribuzione oraria mediana — confronto nominale vs. reale (IPCA)",
     x = "",
     y = "Crescita cumulata (%)",
     fill = "",
     caption = paste0(
-      "Inflazione cumulata IPCA 2014-2022: ",
+      "Inflazione cumulata IPCA ",
+      anno_min,
+      "-",
+      anno_max,
+      ": ",
       sprintf("%.1f%%", inflazione_cum),
       " | Fonte: ISTAT"
     )
@@ -1625,7 +1713,7 @@ if (!is.null(gap_nazionale) && nrow(gap_nazionale) > 0) {
       linewidth = 0.6,
       linetype = "dashed"
     ) +
-    scale_x_continuous(breaks = 2014:2022) +
+    scale_x_continuous(breaks = anno_min:anno_max) +
     labs(
       title = "Gap salariale generazionale in Italia",
       subtitle = "log(W 50+ / W 15-29) — mediana (D5) e intervallo D1-D9",
@@ -1658,7 +1746,7 @@ if (!is.null(gap_ripart) && nrow(gap_ripart) > 0) {
   ) +
     geom_line(linewidth = 1) +
     geom_point(size = 2) +
-    scale_x_continuous(breaks = 2014:2022) +
+    scale_x_continuous(breaks = anno_min:anno_max) +
     scale_color_manual(values = col_ripart, name = "Ripartizione") +
     labs(
       title = "Gap salariale generazionale per ripartizione",
@@ -1693,7 +1781,7 @@ if (!is.null(sigma_prov) && nrow(sigma_prov) > 0) {
       linetype = "dashed",
       linewidth = 0.6
     ) +
-    scale_x_continuous(breaks = 2014:2022) +
+    scale_x_continuous(breaks = anno_min:anno_max) +
     labs(
       title = "Sigma-convergenza del gap generazionale tra province",
       subtitle = "Coefficiente di variazione del log-gap salariale (D5)",
@@ -1727,7 +1815,7 @@ if (!is.null(sigma_sett) && nrow(sigma_sett) > 0) {
       linetype = "dashed",
       linewidth = 0.6
     ) +
-    scale_x_continuous(breaks = 2014:2022) +
+    scale_x_continuous(breaks = anno_min:anno_max) +
     labs(
       title = "Sigma-convergenza del gap generazionale tra settori",
       subtitle = "Coefficiente di variazione del log-gap salariale (Sezioni NACE)",
@@ -1797,12 +1885,18 @@ if (!is.null(beta_prov$data) && nrow(beta_prov$data) > 0) {
     labs(
       title = "Beta-convergenza: province",
       subtitle = paste0(
-        "Gap iniziale (2014) vs variazione (2014-2022), ",
+        "Gap iniziale (",
+        anno_min,
+        ") vs variazione (",
+        anno_min,
+        "-",
+        anno_max,
+        "), ",
         "N = ",
         nrow(p5_data)
       ),
-      x = "Gap salariale iniziale (2014)",
-      y = "Variazione gap (2022 - 2014)",
+      x = paste0("Gap salariale iniziale (", anno_min, ")"),
+      y = paste0("Variazione gap (", anno_max, " - ", anno_min, ")"),
       caption = "Fonte: ISTAT RACLI | Elaborazione: G. Montaletti"
     ) +
     theme_salari()
@@ -1888,12 +1982,18 @@ if (!is.null(beta_sett$data) && nrow(beta_sett$data) > 0) {
     labs(
       title = "Beta-convergenza: settori NACE",
       subtitle = paste0(
-        "Gap iniziale (2014) vs variazione (2014-2022), ",
+        "Gap iniziale (",
+        anno_min,
+        ") vs variazione (",
+        anno_min,
+        "-",
+        anno_max,
+        "), ",
         "N = ",
         nrow(p6_data)
       ),
-      x = "Gap salariale iniziale (2014)",
-      y = "Variazione gap (2022 - 2014)",
+      x = paste0("Gap salariale iniziale (", anno_min, ")"),
+      y = paste0("Variazione gap (", anno_max, " - ", anno_min, ")"),
       caption = paste0(
         leg_str,
         "\nFonte: ISTAT RACLI | Elaborazione: G. Montaletti"
@@ -1936,7 +2036,7 @@ if (exists("gap_decili") && nrow(gap_decili) > 0) {
   ) +
     geom_line(linewidth = 1) +
     geom_point(size = 2.5) +
-    scale_x_continuous(breaks = 2014:2022) +
+    scale_x_continuous(breaks = anno_min:anno_max) +
     scale_color_manual(
       values = c(
         "D1 (primo decile)" = "#6BAED6",
@@ -1993,9 +2093,15 @@ if (!is.null(decomp_geo) && !is.null(decomp_geo$detail)) {
     coord_flip() +
     labs(
       title = "Decomposizione geografica della variazione del gap",
-      subtitle = "Variazione del log-gap salariale generazionale (2014-2022)",
+      subtitle = paste0(
+        "Variazione del log-gap salariale generazionale (",
+        anno_min,
+        "-",
+        anno_max,
+        ")"
+      ),
       x = "",
-      y = "Variazione log-gap (2022 - 2014)",
+      y = paste0("Variazione log-gap (", anno_max, " - ", anno_min, ")"),
       caption = "Fonte: ISTAT RACLI | Elaborazione: G. Montaletti"
     ) +
     theme_salari()
@@ -2035,9 +2141,15 @@ if (!is.null(decomp_sett) && !is.null(decomp_sett$detail)) {
     coord_flip() +
     labs(
       title = "Variazione del gap generazionale per settore NACE",
-      subtitle = "Variazione del log-gap salariale (2014-2022)",
+      subtitle = paste0(
+        "Variazione del log-gap salariale (",
+        anno_min,
+        "-",
+        anno_max,
+        ")"
+      ),
       x = "",
-      y = "Variazione log-gap (2022 - 2014)",
+      y = paste0("Variazione log-gap (", anno_max, " - ", anno_min, ")"),
       caption = "Fonte: ISTAT RACLI | Elaborazione: G. Montaletti"
     ) +
     theme_salari() +
@@ -2058,7 +2170,7 @@ cat("Grafico 10: Heatmap gap settore × territorio...\n")
 
 if (nrow(gap_congiunta) > 0) {
   heatmap_data <- gap_congiunta[
-    anno == 2022,
+    anno == anno_max,
     list(log_gap = mean(log_gap, na.rm = TRUE)),
     by = list(ripartizione, settore_code)
   ]
@@ -2100,7 +2212,11 @@ if (nrow(gap_congiunta) > 0) {
       na.value = "gray90"
     ) +
     labs(
-      title = "Gap generazionale per settore e ripartizione (2022)",
+      title = paste0(
+        "Gap generazionale per settore e ripartizione (",
+        anno_max,
+        ")"
+      ),
       subtitle = "log(W 50+ / W 15-29) — salario mediano",
       x = "Ripartizione",
       y = "Settore NACE",
@@ -2126,33 +2242,35 @@ if (nrow(gap_congiunta) > 0) {
 cat("Grafico 11: Top/bottom province per gap...\n")
 
 if (!is.null(gap_province) && nrow(gap_province) > 0) {
-  prov_2022 <- gap_province[anno == 2022 & !is.na(log_gap_salario_mediano)]
-  prov_2022[,
+  prov_ultimo <- gap_province[
+    anno == anno_max & !is.na(log_gap_salario_mediano)
+  ]
+  prov_ultimo[,
     ripartizione := ripart_short(get_ripartizione(area, ripart_lookup))
   ]
 
   # Aggiungi etichetta area
   if ("area_label" %in% names(gap_province)) {
     area_lab <- unique(gap_province[, list(area, area_label)])
-    prov_2022 <- merge(
-      prov_2022,
+    prov_ultimo <- merge(
+      prov_ultimo,
       area_lab,
       by = "area",
       all.x = TRUE,
       suffixes = c("", ".y")
     )
     # Usa la colonna non duplicata
-    if ("area_label.y" %in% names(prov_2022)) {
-      prov_2022[is.na(area_label), area_label := area_label.y]
-      prov_2022[, area_label.y := NULL]
+    if ("area_label.y" %in% names(prov_ultimo)) {
+      prov_ultimo[is.na(area_label), area_label := area_label.y]
+      prov_ultimo[, area_label.y := NULL]
     }
   }
 
-  setorder(prov_2022, log_gap_salario_mediano)
-  n_show <- min(10, nrow(prov_2022) %/% 2)
+  setorder(prov_ultimo, log_gap_salario_mediano)
+  n_show <- min(10, nrow(prov_ultimo) %/% 2)
   top_bottom <- rbind(
-    prov_2022[1:n_show],
-    prov_2022[(nrow(prov_2022) - n_show + 1):nrow(prov_2022)]
+    prov_ultimo[1:n_show],
+    prov_ultimo[(nrow(prov_ultimo) - n_show + 1):nrow(prov_ultimo)]
   )
   top_bottom[, tipo := rep(c("Bottom 10", "Top 10"), each = n_show)]
 
@@ -2168,7 +2286,11 @@ if (!is.null(gap_province) && nrow(gap_province) > 0) {
     scale_fill_manual(values = col_ripart, name = "Ripartizione") +
     coord_flip() +
     labs(
-      title = "Province con gap generazionale minore e maggiore (2022)",
+      title = paste0(
+        "Province con gap generazionale minore e maggiore (",
+        anno_max,
+        ")"
+      ),
       subtitle = "log(W 50+ / W 15-29) — salario mediano",
       x = "",
       y = "Gap salariale log(W50+/W15-29)",
@@ -2254,7 +2376,7 @@ if (!is.null(gap_settori) && nrow(gap_settori) > 0) {
   ) +
     geom_line(linewidth = 0.7, alpha = 0.8) +
     geom_point(size = 2.2) +
-    scale_x_continuous(breaks = 2014:2022) +
+    scale_x_continuous(breaks = anno_min:anno_max) +
     scale_color_manual(values = col_17[seq_len(n_sett)]) +
     scale_shape_manual(values = shp_17) +
     labs(
@@ -2325,8 +2447,8 @@ if (!is.null(year_fe) && nrow(year_fe) > 0) {
   cat("  Salvato: eta_13_panel_fe_coefficients.png\n")
 }
 
-# --- Grafico 14: Mappa gap province 2022 ---
-cat("Grafico 14: Mappa gap provinciale 2022...\n")
+# --- Grafico 14: Mappa gap province ultimo anno ---
+cat(paste0("Grafico 14: Mappa gap provinciale ", anno_max, "...\n"))
 
 shp_file <- "data/shp/province_italia_istat.rds"
 mappa_ok <- FALSE
@@ -2336,31 +2458,31 @@ if (file.exists(shp_file)) {
   cat("  Shapefile caricato:", nrow(italy_sf), "geometrie\n")
 
   if (!is.null(gap_province) && "cod_uts" %in% names(gap_province)) {
-    gap_2022_map <- gap_province[
-      anno == 2022 & !is.na(log_gap_salario_mediano),
+    gap_map_ultimo <- gap_province[
+      anno == anno_max & !is.na(log_gap_salario_mediano),
       list(area, cod_uts, log_gap_salario_mediano)
     ]
   } else if (!is.null(itter_mapping)) {
     # Aggiungi cod_uts via mapping
-    gap_2022_map <- gap_province[
-      anno == 2022 & !is.na(log_gap_salario_mediano),
+    gap_map_ultimo <- gap_province[
+      anno == anno_max & !is.na(log_gap_salario_mediano),
       list(area, log_gap_salario_mediano)
     ]
-    gap_2022_map <- merge(
-      gap_2022_map,
+    gap_map_ultimo <- merge(
+      gap_map_ultimo,
       itter_mapping[, list(itter107, cod_uts)],
       by.x = "area",
       by.y = "itter107",
       all.x = TRUE
     )
   } else {
-    gap_2022_map <- NULL
+    gap_map_ultimo <- NULL
   }
 
-  if (!is.null(gap_2022_map) && nrow(gap_2022_map) > 0) {
+  if (!is.null(gap_map_ultimo) && nrow(gap_map_ultimo) > 0) {
     map_data_14 <- merge(
       italy_sf,
-      gap_2022_map,
+      gap_map_ultimo,
       by.x = "COD_UTS",
       by.y = "cod_uts",
       all.x = TRUE
@@ -2423,8 +2545,14 @@ if (file.exists(shp_file)) {
   cat("  Eseguire prima: Rscript scripts/00_download_data.R\n")
 }
 
-# --- Grafico 15: Mappa variazione gap 2014-2022 ---
-cat("Grafico 15: Mappa variazione gap 2014-2022...\n")
+# --- Grafico 15: Mappa variazione gap primo-ultimo anno ---
+cat(paste0(
+  "Grafico 15: Mappa variazione gap ",
+  anno_min,
+  "-",
+  anno_max,
+  "...\n"
+))
 
 if (mappa_ok && !is.null(beta_prov$data)) {
   delta_map <- copy(beta_prov$data)
@@ -2471,7 +2599,13 @@ if (mappa_ok && !is.null(beta_prov$data)) {
         width = unit(1.5, "cm")
       ) +
       labs(
-        title = "Variazione del gap salariale generazionale (2014-2022)",
+        title = paste0(
+          "Variazione del gap salariale generazionale (",
+          anno_min,
+          "-",
+          anno_max,
+          ")"
+        ),
         subtitle = "Differenza log-gap per provincia",
         caption = "Fonte: ISTAT RACLI | Elaborazione: G. Montaletti"
       ) +
@@ -2514,18 +2648,20 @@ cat("==== 15. Epilogo ====\n\n")
 cat("--- Riepilogo risultati ---\n\n")
 
 if (!is.null(gap_nazionale) && nrow(gap_nazionale) > 0) {
-  g14 <- gap_nazionale[anno == 2014]$log_gap_salario_mediano
-  g22 <- gap_nazionale[anno == 2022]$log_gap_salario_mediano
+  g14 <- gap_nazionale[anno == anno_min]$log_gap_salario_mediano
+  g22 <- gap_nazionale[anno == anno_max]$log_gap_salario_mediano
   cat(sprintf("Gap generazionale nazionale (D5):\n"))
   cat(sprintf(
-    "  2014: %.3f (%.1f%%)\n",
+    "  %d: %.3f (%.1f%%)\n",
+    anno_min,
     g14,
-    gap_nazionale[anno == 2014]$pct_gap_salario_mediano
+    gap_nazionale[anno == anno_min]$pct_gap_salario_mediano
   ))
   cat(sprintf(
-    "  2022: %.3f (%.1f%%)\n",
+    "  %d: %.3f (%.1f%%)\n",
+    anno_max,
     g22,
-    gap_nazionale[anno == 2022]$pct_gap_salario_mediano
+    gap_nazionale[anno == anno_max]$pct_gap_salario_mediano
   ))
   cat(sprintf("  Variazione: %+.3f\n\n", g22 - g14))
 }
@@ -2533,9 +2669,11 @@ if (!is.null(gap_nazionale) && nrow(gap_nazionale) > 0) {
 if (!is.null(sigma_prov) && nrow(sigma_prov) > 0) {
   cat(sprintf("Sigma-convergenza (province):\n"))
   cat(sprintf(
-    "  CV 2014: %.3f → CV 2022: %.3f\n\n",
-    sigma_prov[anno == 2014]$cv_gap,
-    sigma_prov[anno == 2022]$cv_gap
+    "  CV %d: %.3f → CV %d: %.3f\n\n",
+    anno_min,
+    sigma_prov[anno == anno_min]$cv_gap,
+    anno_max,
+    sigma_prov[anno == anno_max]$cv_gap
   ))
 }
 
@@ -2587,6 +2725,13 @@ cat(sprintf("\nGrafici generati: %d\n", length(grafici)))
 for (g in grafici) {
   cat(sprintf("  [OK] %s\n", g))
 }
+
+# Salva metadata
+saveRDS(
+  list(anno_min = anno_min, anno_max = anno_max, n_anni = n_anni),
+  "output/eta/metadata.rds"
+)
+cat("Metadata salvati: output/eta/metadata.rds\n")
 
 cat("\n==== Pipeline Gap Salariale per Età completata ====\n")
 cat(sprintf("Tempo: %s\n", Sys.time()))
