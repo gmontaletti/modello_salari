@@ -51,19 +51,37 @@ col_palette <- c(
 
 cat("==== 2. Download dati ISTAT ====\n\n")
 
-# IPCA
-cat("Download IPCA (168_756)...\n")
+# IPCA - usa 168_761 (base 2025, serie più aggiornata) con fallback su 168_756 (base 2015)
+cat("Download IPCA (168_761, base 2025)...\n")
+ipca_base <- "2025"
 ipca_raw <- tryCatch(
   {
-    dt <- download_istat_data("168_756")
-    saveRDS(dt, "data/ipca.rds")
-    cat("  OK\n")
+    dt <- download_istat_data("168_761")
+    saveRDS(dt, "data/ipca_b2025.rds")
+    cat("  OK (", nrow(dt), "righe)\n")
     dt
   },
   error = function(e) {
-    cat("  Download fallito:", conditionMessage(e), "\n")
-    cat("  Uso dati locali...\n")
-    readRDS("data/ipca.rds")
+    cat("  Download 168_761 fallito:", conditionMessage(e), "\n")
+    cat("  Tentativo 168_756 (base 2015)...\n")
+    tryCatch(
+      {
+        dt <- download_istat_data("168_756")
+        saveRDS(dt, "data/ipca.rds")
+        ipca_base <<- "2015"
+        cat("  OK via 168_756\n")
+        dt
+      },
+      error = function(e2) {
+        cat("  Uso dati locali...\n")
+        if (file.exists("data/ipca_b2025.rds")) {
+          readRDS("data/ipca_b2025.rds")
+        } else {
+          ipca_base <<- "2015"
+          readRDS("data/ipca.rds")
+        }
+      }
+    )
   }
 )
 
@@ -118,13 +136,33 @@ cat("==== 3. Estrazione serie target ====\n\n")
 ipca_raw <- as.data.table(ipca_raw)
 retr_raw <- as.data.table(retr_raw)
 
-# IPCA: indice generale Italia, numeri indici (base 2015=100)
+# IPCA: indice generale Italia, numeri indici
+# Supporta sia 168_761 (ECOICOP_2) che 168_756 (E_COICOP_REV_ISTAT)
+coicop_col <- intersect(c("ECOICOP_2", "E_COICOP_REV_ISTAT"), names(ipca_raw))[
+  1
+]
+cat("  Colonna classificazione:", coicop_col, "(base", ipca_base, ")\n")
 ipca <- ipca_raw[
-  E_COICOP_REV_ISTAT == "00" &
+  get(coicop_col) == "00" &
     MEASURE == 4 &
     REF_AREA == "IT",
   .(periodo = ObsDimension, ipca = as.numeric(ObsValue))
 ]
+
+# Ribasamento a 2015=100 se base è 2025
+if (ipca_base == "2025") {
+  ipca[, data_tmp := as.Date(paste0(periodo, "-01"))]
+  base_val <- ipca[year(data_tmp) == 2015, mean(ipca, na.rm = TRUE)]
+  if (!is.na(base_val) && base_val > 0) {
+    ipca[, ipca := ipca / base_val * 100]
+    cat(
+      "  IPCA ribasato a 2015=100 (fattore:",
+      sprintf("%.4f", 100 / base_val),
+      ")\n"
+    )
+  }
+  ipca[, data_tmp := NULL]
+}
 cat("IPCA:", nrow(ipca), "osservazioni mensili\n")
 cat("  Range:", min(ipca$periodo), "-", max(ipca$periodo), "\n")
 
