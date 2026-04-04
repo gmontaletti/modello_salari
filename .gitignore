@@ -30,3 +30,6 @@ wip/
 
 # Log files
 *.log
+reports/imprese.tex
+reports/racli.tex
+reports/*.tex
