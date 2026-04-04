@@ -1,6 +1,6 @@
 ---
 title: "Analisi Preliminare dei Dati"
-subtitle: "`r paste0('Fonti ISTAT/OECD e Tendenze ', start_year, '-', end_year, ' per il Modello Salari Italia')`"
+subtitle: "Fonti ISTAT/OECD e Tendenze per il Modello Salari Italia"
 author:
   - Giampaolo Montaletti
   - "ORCID: 0009-0002-5327-1122"
@@ -34,7 +34,8 @@ header-includes:
 
 ```{r metadata, include=FALSE}
 # 1. Metadati temporali (caricati prima del setup per uso nel YAML) -----
-meta_vecm <- readRDS("output/vecm/metadata.rds")
+knitr::opts_knit$set(root.dir = here::here())
+meta_vecm <- readRDS(here::here("output/vecm/metadata.rds"))
 start_year <- meta_vecm$start_year
 end_year <- meta_vecm$end_year
 ultimo_periodo <- paste0("2020-", end_year)

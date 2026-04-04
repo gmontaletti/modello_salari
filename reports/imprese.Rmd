@@ -1,5 +1,5 @@
 ---
-title: "`r paste0('Indice Ore Lavorate nelle Imprese Italiane: Analisi ', anno_primo, '-', anno_ult)`"
+title: "Indice Ore Lavorate nelle Imprese Italiane"
 subtitle: "Dinamiche Settoriali e Dimensionali dall'Indicatore ISTAT MHOUR_JV"
 author:
   - Giampaolo Montaletti
@@ -22,7 +22,8 @@ header-includes:
 
 ```{r metadata, include=FALSE}
 # 1. Metadati temporali (caricati prima del setup per uso nel YAML) -----
-meta_imp <- readRDS("output/imprese/metadata.rds")
+knitr::opts_knit$set(root.dir = here::here())
+meta_imp <- readRDS(here::here("output/imprese/metadata.rds"))
 anno_ult <- meta_imp$anno_ult
 trim_ult <- meta_imp$trim_ult
 periodo_ult <- meta_imp$periodo_ult

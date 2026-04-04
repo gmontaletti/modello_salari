@@ -38,7 +38,7 @@ library(kableExtra)
 library(data.table)
 
 # 1. Metadati temporali -----
-meta_eta <- readRDS("../output/eta/metadata.rds")
+meta_eta <- readRDS(here::here("output/eta/metadata.rds"))
 anno_min <- meta_eta$anno_min
 anno_max <- meta_eta$anno_max
 n_anni <- anno_max - anno_min
@@ -47,24 +47,24 @@ anno_mid <- floor((anno_min + anno_max) / 2)
 
 ```{r load-data}
 # 1. Caricamento dati pre-computati -----
-gap_naz <- readRDS("../output/racli/gap_eta_nazionale.rds")
-gap_prov <- readRDS("../output/racli/gap_eta_province.rds")
-gap_sett <- readRDS("../output/racli/gap_eta_settori.rds")
-sigma <- readRDS("../output/racli/sigma_convergence_eta.rds")
+gap_naz <- readRDS(here::here("output/racli/gap_eta_nazionale.rds"))
+gap_prov <- readRDS(here::here("output/racli/gap_eta_province.rds"))
+gap_sett <- readRDS(here::here("output/racli/gap_eta_settori.rds"))
+sigma <- readRDS(here::here("output/racli/sigma_convergence_eta.rds"))
 # sigma e' una lista: $province, $settori, $per_ripartizione
-beta <- readRDS("../output/racli/beta_convergence_eta.rds")
+beta <- readRDS(here::here("output/racli/beta_convergence_eta.rds"))
 # beta e' una lista: $province_uncond, $province_cond, $settori_uncond (oggetti lm con $coef)
-model_beta <- readRDS("../output/racli/model_beta_eta.rds")
+model_beta <- readRDS(here::here("output/racli/model_beta_eta.rds"))
 # model_beta e' una lista: $prov, $prov_cond, $sett (oggetti lm)
-model_panel <- readRDS("../output/racli/model_panel_eta.rds")
+model_panel <- readRDS(here::here("output/racli/model_panel_eta.rds"))
 # model_panel e' una lista: $model, $year_fe, $vcov_cl
-decomp_geo <- readRDS("../output/racli/decomposizione_geo_eta.rds")
+decomp_geo <- readRDS(here::here("output/racli/decomposizione_geo_eta.rds"))
 # decomp_geo e' una lista: $components, $detail, $delta_total
-decomp_sett <- readRDS("../output/racli/decomposizione_settore_eta.rds")
+decomp_sett <- readRDS(here::here("output/racli/decomposizione_settore_eta.rds"))
 # decomp_sett e' una lista: $components, $detail, $delta_total
-analisi_congiunta <- readRDS("../output/racli/analisi_congiunta_eta.rds")
+analisi_congiunta <- readRDS(here::here("output/racli/analisi_congiunta_eta.rds"))
 # analisi_congiunta e' una lista: $gap_data, $anova, $ols_model, $ols_robust
-robustezza <- readRDS("../output/racli/robustezza_eta.rds")
+robustezza <- readRDS(here::here("output/racli/robustezza_eta.rds"))
 # robustezza e' una lista: $gap_riferimento_30_49, $gap_per_decile, $beta_no_covid, $sigma_no_covid
 ```
 
@@ -494,7 +494,7 @@ I risultati sin qui presentati documentano una convergenza del gap generazionale
 Per verificare questa ipotesi, si deflazionano le retribuzioni orarie nominali utilizzando l'indice dei prezzi al consumo armonizzato (IPCA) con base 2015, calcolato a partire dai dati trimestrali ISTAT già impiegati nel modello VECM.
 
 ```{r load-conv-reale}
-conv_reale_data <- readRDS("../output/racli/convergenza_reale_eta.rds")
+conv_reale_data <- readRDS(here::here("output/racli/convergenza_reale_eta.rds"))
 ```
 
 ```{r tab-salari-reali}

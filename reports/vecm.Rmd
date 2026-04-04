@@ -27,6 +27,7 @@ header-includes:
 ---
 
 ```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = here::here())
 knitr::opts_chunk$set(
   echo = FALSE,
   message = FALSE,
@@ -38,13 +39,13 @@ knitr::opts_chunk$set(
 )
 
 # 1. Metadati temporali -----
-meta_vecm <- readRDS("output/vecm/metadata.rds")
+meta_vecm <- readRDS(here::here("output/vecm/metadata.rds"))
 start_year <- meta_vecm$start_year
 end_year <- meta_vecm$end_year
 
 # 2. Carica i dati dai risultati della pipeline -----
-data_istat <- readRDS("output/vecm/dati_istat.rds")
-results <- readRDS("output/vecm/modello_salari_results.rds")
+data_istat <- readRDS(here::here("output/vecm/dati_istat.rds"))
+results <- readRDS(here::here("output/vecm/modello_salari_results.rds"))
 
 # Estrai i risultati dal file consolidato
 eda_results <- results$eda_results

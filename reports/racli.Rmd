@@ -23,6 +23,7 @@ header-includes:
 ---
 
 ```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = here::here())
 knitr::opts_chunk$set(
   echo = FALSE,
   message = FALSE,
@@ -40,7 +41,7 @@ library(knitr)
 library(kableExtra)
 
 # Carica metadata periodo
-meta_racli <- readRDS("output/racli/metadata.rds")
+meta_racli <- readRDS(here::here("output/racli/metadata.rds"))
 anno_min <- meta_racli$anno_min
 anno_max <- meta_racli$anno_max
 n_anni <- meta_racli$n_anni
@@ -93,7 +94,7 @@ stat_ripartizioni_ultimo <- readRDS("output/racli/stat_ripartizioni_ultimo.rds")
 Nel `r anno_max`, il salario mediano orario nazionale si attesta a **`r sprintf("%.2f", sintesi_descrittive$salario_mediano_nazionale_ultimo)` EUR/ora**. Nel periodo `r anno_min`-`r anno_max`, i salari sono cresciuti del **`r sprintf("%.1f%%", sintesi_descrittive$crescita_media)`** complessivamente, con un tasso di crescita annuo medio dello **`r sprintf("%.2f%%", sintesi_regressioni$crescita_annua_pct)`**.
 
 ```{r fig-evoluzione, fig.cap=paste0("Evoluzione salario mediano nazionale ", anno_min, "-", anno_max), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/01_evoluzione_salari_nazionale.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "01_evoluzione_salari_nazionale.png"))
 ```
 
 ## Differenziali di Genere
@@ -113,7 +114,7 @@ gap_gender_ultimo %>%
 ```
 
 ```{r fig-gap-gender, fig.cap=paste0("Evoluzione gap di genere ", anno_min, "-", anno_max), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/02_gap_genere_tempo.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "02_gap_genere_tempo.png"))
 ```
 
 \newpage
@@ -136,7 +137,7 @@ gap_educazione_ultimo %>%
 ```
 
 ```{r fig-educazione, fig.cap=paste0("Salari per livello educativo (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/09_salari_educazione.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "09_salari_educazione.png"))
 ```
 
 ## Premio Contratto Permanente
@@ -157,7 +158,7 @@ gap_contratto_ultimo %>%
 ```
 
 ```{r fig-contratto, fig.cap=paste0("Salari per tipo contratto (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/10_salari_contratto.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "10_salari_contratto.png"))
 ```
 
 \newpage
@@ -182,11 +183,11 @@ stat_ripartizioni_ultimo %>%
 ```
 
 ```{r fig-ripartizioni, fig.cap=paste0("Salari mediani per ripartizione geografica (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/03_salari_ripartizioni.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "03_salari_ripartizioni.png"))
 ```
 
 ```{r fig-boxplot, fig.cap=paste0("Distribuzione salari provinciali per ripartizione (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/06_boxplot_salari_ripartizioni.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "06_boxplot_salari_ripartizioni.png"))
 ```
 
 ## Cartografie Provinciali
@@ -194,25 +195,25 @@ knitr::include_graphics("output/racli/grafici/06_boxplot_salari_ripartizioni.png
 Le mappe seguenti illustrano la distribuzione territoriale dei differenziali salariali a livello provinciale, evidenziando pattern geografici significativi.
 
 ```{r fig-mappa-salari, fig.cap=paste0("Mappa salari mediani provinciali (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/21_mappa_salari_province.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "21_mappa_salari_province.png"))
 ```
 
 La mappa dei salari mediani conferma la persistenza del divario Nord-Sud, con le province del Nord-Ovest (Lombardia, Piemonte) e del Nord-Est (Emilia-Romagna, Veneto) che presentano retribuzioni orarie sistematicamente superiori rispetto al Mezzogiorno.
 
 ```{r fig-mappa-crescita, fig.cap=paste0("Mappa crescita salariale ", anno_min, "-", anno_max, " (%)"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/22_mappa_crescita_salari.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "22_mappa_crescita_salari.png"))
 ```
 
 La mappa della crescita salariale mostra una distribuzione più eterogenea, con alcune province meridionali che registrano tassi di crescita superiori alla media nazionale, coerentemente con le evidenze di $\beta$-convergenza.
 
 ```{r fig-mappa-dispersione, fig.cap=paste0("Mappa dispersione salariale D9/D1 (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/23_mappa_disuguaglianza_D9_D1.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "23_mappa_disuguaglianza_D9_D1.png"))
 ```
 
 Il rapporto interdecile D9/D1 presenta variabilità geografica significativa, con livelli di dispersione salariale più elevati in alcune province metropolitane e nelle aree con maggiore presenza di settori ad alta variabilità retributiva.
 
 ```{r fig-mappa-cluster, fig.cap=paste0("Mappa clustering k-means province (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/24_mappa_cluster_province.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "24_mappa_cluster_province.png"))
 ```
 
 Il clustering territoriale identifica due profili provinciali distinti: un cluster ad alto reddito (prevalentemente Nord) e un cluster a basso reddito (prevalentemente Sud e Isole), con alcune eccezioni significative che evidenziano dinamiche locali specifiche.
@@ -271,7 +272,7 @@ ranking_settori_nace %>%
 ```
 
 ```{r fig-ranking-settori, fig.cap=paste0("Ranking settori NACE per salario mediano (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/16_salari_settori_nace.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "16_salari_settori_nace.png"))
 ```
 
 ## Dispersione Salariale Intra-Settoriale
@@ -295,7 +296,7 @@ dispersione_settori %>%
 ```
 
 ```{r fig-scatter-settori, fig.cap=paste0("Relazione tra livello salariale e dispersione per settore (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/17_scatter_salari_dispersione_settori.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "17_scatter_salari_dispersione_settori.png"))
 ```
 
 ## Gap di Genere per Settore
@@ -318,7 +319,7 @@ gap_gender_settori %>%
 ```
 
 ```{r fig-gap-settori, fig.cap=paste0("Gap salariale di genere per settore NACE (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/18_gap_genere_settori.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "18_gap_genere_settori.png"))
 ```
 
 ## Interazione Settore-Territorio
@@ -353,7 +354,7 @@ gap_territoriale_settori %>%
 ```
 
 ```{r fig-heatmap-settori, fig.cap=paste0("Salario mediano per settore e ripartizione geografica (", anno_max, ")"), out.width="95%"}
-knitr::include_graphics("output/racli/grafici/19_heatmap_settori_ripartizioni.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "19_heatmap_settori_ripartizioni.png"))
 ```
 
 ### Settori "Equalizzatori" vs "Polarizzatori"
@@ -387,7 +388,7 @@ cv_territoriale_settori %>%
 ```
 
 ```{r fig-gap-nord-sud, fig.cap=paste0("Gap salariale Nord-Sud per settore NACE (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/20_gap_nord_sud_settori.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "20_gap_nord_sud_settori.png"))
 ```
 
 ## Sintesi Differenziali Settoriali
@@ -413,7 +414,7 @@ L'analisi settoriale evidenzia i seguenti fatti stilizzati:
 Il rapporto interdecile D9/D1 a livello nazionale nel `r anno_max` è pari a **`r sprintf("%.2f", sintesi_distributiva$D9_D1_ultimo)`**, indicando che i lavoratori nel 90° percentile guadagnano circa 2.6 volte i lavoratori nel 10° percentile. Questo indicatore è preferito rispetto all'indice di Gini in quanto direttamente calcolabile dai dati RACLI disponibili (che forniscono solo i decili D1, D5, D9) senza necessità di assunzioni parametriche sulla forma della distribuzione.
 
 ```{r fig-D9D1, fig.cap="Rapporto interdecile D9/D1", out.width="90%"}
-knitr::include_graphics("output/racli/grafici/05_rapporto_D9_D1.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "05_rapporto_D9_D1.png"))
 ```
 
 ## Fan Chart Distribuzione Decili
@@ -421,7 +422,7 @@ knitr::include_graphics("output/racli/grafici/05_rapporto_D9_D1.png")
 L'evoluzione della distribuzione salariale mostra stabilità nella struttura relativa tra decili, con tutti i percentili che crescono a ritmi simili.
 
 ```{r fig-fanchart, fig.cap=paste0("Fan chart distribuzione salariale: decili D1, D5, D9 (", anno_min, "-", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/12_fan_chart_decili.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "12_fan_chart_decili.png"))
 ```
 
 \newpage
@@ -440,11 +441,11 @@ I test di convergenza territoriale mostrano evidenze significative di **catching
 - **$\beta$-convergenza**: `r ifelse(sintesi_distributiva$convergenza_beta, "CONFERMATA", "NON CONFERMATA")` - le province con salari iniziali più bassi crescono più velocemente
 
 ```{r fig-sigma, fig.cap="$\\sigma$-convergenza: coefficiente di variazione salari provinciali", out.width="90%"}
-knitr::include_graphics("output/racli/grafici/13_sigma_convergenza.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "13_sigma_convergenza.png"))
 ```
 
 ```{r fig-beta, fig.cap="$\\beta$-convergenza: regressione crescita su livello iniziale", out.width="90%"}
-knitr::include_graphics("output/racli/grafici/14_beta_convergenza.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "14_beta_convergenza.png"))
 ```
 
 \newpage
@@ -461,11 +462,11 @@ L'analisi di clustering k-means identifica **`r sintesi_clustering$k_ottimale` c
 Le province ad alto reddito presentano sia salari più elevati (+9%) sia maggiore dispersione salariale interna (D9/D1 più elevato).
 
 ```{r fig-cluster, fig.cap="Clustering province: k-means con k=2", out.width="90%"}
-knitr::include_graphics("output/racli/grafici/08_cluster_province.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "08_cluster_province.png"))
 ```
 
 ```{r fig-topbottom, fig.cap=paste0("Top 10 e Bottom 10 province per salario mediano (", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/15_top_bottom_province.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "15_top_bottom_province.png"))
 ```
 
 \newpage
@@ -492,6 +493,10 @@ diff_settori %>%
   mutate(
     settore_short = ifelse(nchar(settore) > 45, paste0(substr(settore, 1, 42), "..."), settore),
     sign = ifelse(significativo, "*", "")
+  ) %>%
+  mutate(
+    ci_lower = premio_pct - 1.96 * se,
+    ci_upper = premio_pct + 1.96 * se
   ) %>%
   select(settore_short, premio_pct, ci_lower, ci_upper, sign) %>%
   kable(
@@ -591,7 +596,7 @@ I risultati dell'analisi RACLI micro-dati sono coerenti con le evidenze macro de
 La validazione statistica conferma una correlazione molto forte (r = 0.944, p < 0.001) tra le serie RACLI aggregate a livello nazionale e i dati del modello VECM per il periodo sovrapposto `r anno_min`-`r anno_max`, attestando la robustezza e coerenza delle due fonti informative.
 
 ```{r fig-validazione, fig.cap=paste0("Validazione RACLI vs VECM (", anno_min, "-", anno_max, ")"), out.width="90%"}
-knitr::include_graphics("output/racli/grafici/16_validazione_racli_vecm.png")
+knitr::include_graphics(here::here("output", "racli", "grafici", "16_validazione_racli_vecm.png"))
 ```
 
 \newpage
