@@ -98,10 +98,10 @@ dt_long[, serie := factor(serie,
 
 # Proiezione convergenza salario reale
 proj_data <- NULL
-if (!is.na(meta$mesi_a_convergenza) && meta$tasso_mensile_12m > 0) {
+if (!is.na(meta$mesi_a_convergenza) && meta$tasso_mensile_recovery > 0) {
   proj_dates <- seq.Date(meta$data_ultimo, by = "month",
                          length.out = meta$mesi_a_convergenza + 1)
-  proj_values <- meta$w_reale_ultimo * (1 + meta$tasso_mensile_12m)^(0:meta$mesi_a_convergenza)
+  proj_values <- meta$w_reale_ultimo * (1 + meta$tasso_mensile_recovery)^(0:meta$mesi_a_convergenza)
   proj_data <- data.table(data = proj_dates, indice = proj_values)
 }
 

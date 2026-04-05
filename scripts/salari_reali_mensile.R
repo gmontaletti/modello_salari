@@ -284,18 +284,24 @@ ultimo <- dt[.N]
 w_reale_ultimo <- ultimo$w_reale
 gap_a_100 <- 100 - w_reale_ultimo
 
-# Tasso di crescita mensile geometrico (ultimi 12 mesi)
-if (nrow(dt) >= 13) {
-  w_12m_fa <- dt[.N - 12, w_reale]
-  tasso_mensile_12m <- (w_reale_ultimo / w_12m_fa)^(1 / 12) - 1
+# Tasso di crescita dalla fase di recupero (dal minimo storico in poi)
+min_idx <- which.min(dt$w_reale)
+data_minimo <- dt$data[min_idx]
+w_reale_minimo <- dt$w_reale[min_idx]
+n_mesi_recovery <- nrow(dt) - min_idx
+
+if (n_mesi_recovery >= 3) {
+  tasso_mensile_recovery <- (w_reale_ultimo / w_reale_minimo)^(1 /
+    n_mesi_recovery) -
+    1
 } else {
-  tasso_mensile_12m <- NA
+  tasso_mensile_recovery <- NA
 }
 
-# Mesi stimati per raggiungere indice 100
-if (!is.na(tasso_mensile_12m) && tasso_mensile_12m > 0) {
+# Mesi stimati per raggiungere indice 100 al tasso della fase di recupero
+if (!is.na(tasso_mensile_recovery) && tasso_mensile_recovery > 0) {
   mesi_a_convergenza <- ceiling(
-    log(100 / w_reale_ultimo) / log(1 + tasso_mensile_12m)
+    log(100 / w_reale_ultimo) / log(1 + tasso_mensile_recovery)
   )
   data_convergenza <- seq.Date(
     ultimo$data,
@@ -307,14 +313,22 @@ if (!is.na(tasso_mensile_12m) && tasso_mensile_12m > 0) {
   data_convergenza <- NA
 }
 
-cat("  Stima convergenza:\n")
+cat("  Stima convergenza (fase di recupero):\n")
 cat("    Indice attuale:", sprintf("%.1f", w_reale_ultimo), "\n")
-cat("    Gap a 100:", sprintf("%.1f", gap_a_100), "punti\n")
 cat(
-  "    Tasso mensile (12m):",
-  sprintf("%.3f%%", tasso_mensile_12m * 100),
-  "\n"
+  "    Minimo storico:",
+  sprintf("%.1f", w_reale_minimo),
+  paste0("(", format(data_minimo, "%B %Y"), ")\n")
 )
+cat("    Mesi di recupero:", n_mesi_recovery, "\n")
+cat("    Gap a 100:", sprintf("%.1f", gap_a_100), "punti\n")
+if (!is.na(tasso_mensile_recovery)) {
+  cat(
+    "    Tasso mensile (recovery):",
+    sprintf("%.3f%%", tasso_mensile_recovery * 100),
+    "\n"
+  )
+}
 if (!is.na(mesi_a_convergenza)) {
   cat("    Mesi stimati:", mesi_a_convergenza, "\n")
   cat("    Data stimata:", format(data_convergenza, "%B %Y"), "\n")
@@ -331,7 +345,10 @@ metadata <- list(
   cum_reale_2015 = ultimo$w_reale_cum_2015,
   w_reale_ultimo = w_reale_ultimo,
   gap_a_100 = gap_a_100,
-  tasso_mensile_12m = tasso_mensile_12m,
+  w_reale_minimo = w_reale_minimo,
+  data_minimo = data_minimo,
+  n_mesi_recovery = n_mesi_recovery,
+  tasso_mensile_recovery = tasso_mensile_recovery,
   mesi_a_convergenza = mesi_a_convergenza,
   data_convergenza = data_convergenza,
   n_mesi = nrow(dt),
