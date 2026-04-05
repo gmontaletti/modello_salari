@@ -218,14 +218,27 @@ setkey(retr, data)
 dt <- merge(ipca_filtered, retr, by = "data", all.x = TRUE)
 setorder(dt, data)
 
-# Forward fill: per mesi dopo l'ultimo salario osservato, usa ultimo valore noto
+# Forward fill: stima lineare per mesi dopo l'ultimo salario osservato
 dt[, w_stimato := data > data_ultimo_w]
 n_stimati <- sum(dt$w_stimato)
 if (n_stimati > 0) {
-  ultimo_w_noto <- retr[data == data_ultimo_w, w_nominale]
-  dt[w_stimato == TRUE, w_nominale := ultimo_w_noto]
+  # Regressione lineare sugli ultimi 5 anni di salario osservato
+  retr_recent <- retr[data >= data_ultimo_w - 365.25 * 5]
+  retr_recent[, t := as.numeric(data - min(data)) / 30.44]
+  fit <- lm(w_nominale ~ t, data = retr_recent)
+
+  # Proiezione per i mesi mancanti
+  t0 <- as.numeric(data_ultimo_w - min(retr_recent$data)) / 30.44
+  dt[
+    w_stimato == TRUE,
+    w_nominale := predict(
+      fit,
+      newdata = data.table(t = t0 + as.numeric(data - data_ultimo_w) / 30.44)
+    )
+  ]
+
   cat(
-    "  Salario stimato per",
+    "  Salario stimato (regressione lineare 5 anni) per",
     n_stimati,
     "mesi:",
     format(data_ultimo_w + 32, "%b %Y"),
@@ -233,6 +246,8 @@ if (n_stimati > 0) {
     format(max(dt$data), "%b %Y"),
     "\n"
   )
+  cat("    Trend:", sprintf("%+.3f/mese", coef(fit)["t"]), "\n")
+  cat("    R²:", sprintf("%.3f", summary(fit)$r.squared), "\n")
 }
 
 # Pulizia colonne periodo dal merge
