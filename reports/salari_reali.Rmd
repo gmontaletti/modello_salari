@@ -161,13 +161,21 @@ ggplot(dt_var_long, aes(x = data, y = variazione, color = serie)) +
 ```{r tabella-25mesi}
 n_mesi_tab <- 25
 tab <- tail(dt[order(data)], n_mesi_tab)
+has_stimati <- "w_stimato" %in% names(tab) && any(tab$w_stimato)
 tab_display <- tab[, .(
-  Mese = format(data, "%b %Y"),
+  Mese = paste0(format(data, "%b %Y"),
+                ifelse("w_stimato" %in% names(.SD) & w_stimato, " *", "")),
   `W nom.` = sprintf("%.1f", w_nominale),
   IPCA = sprintf("%.1f", ipca),
   `W reale` = sprintf("%.1f", w_reale),
   `Var. reale` = ifelse(is.na(var_w_reale), "---", sprintf("%+.1f%%", var_w_reale))
 )]
+
+nota_stima <- if (has_stimati) {
+  "\\* Salario nominale stimato (ultimo valore osservato)."
+} else {
+  NULL
+}
 
 kbl(tab_display, booktabs = TRUE, align = "lrrrr",
     caption = paste0("Ultimi ", n_mesi_tab, " mesi: indici e variazioni tendenziali")) %>%
@@ -175,7 +183,8 @@ kbl(tab_display, booktabs = TRUE, align = "lrrrr",
     latex_options = c("hold_position", "scale_down"),
     font_size = 7,
     full_width = TRUE
-  )
+  ) %>%
+  {if (!is.null(nota_stima)) footnote(., general = nota_stima, general_title = "") else .}
 ```
 
 \normalsize
