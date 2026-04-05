@@ -51,39 +51,40 @@ col_palette <- c(
 
 cat("==== 2. Download dati ISTAT ====\n\n")
 
-# IPCA - usa 168_761 (base 2025, serie più aggiornata) con fallback su 168_756 (base 2015)
+# IPCA - usa 168_761 (base 2025, più aggiornata) con fallback su 168_756 (base 2015)
 cat("Download IPCA (168_761, base 2025)...\n")
 ipca_base <- "2025"
-ipca_raw <- tryCatch(
-  {
-    dt <- download_istat_data("168_761")
-    saveRDS(dt, "data/ipca_b2025.rds")
-    cat("  OK (", nrow(dt), "righe)\n")
-    dt
-  },
-  error = function(e) {
-    cat("  Download 168_761 fallito:", conditionMessage(e), "\n")
-    cat("  Tentativo 168_756 (base 2015)...\n")
-    tryCatch(
-      {
-        dt <- download_istat_data("168_756")
-        saveRDS(dt, "data/ipca.rds")
-        ipca_base <<- "2015"
-        cat("  OK via 168_756\n")
-        dt
-      },
-      error = function(e2) {
-        cat("  Uso dati locali...\n")
-        if (file.exists("data/ipca_b2025.rds")) {
-          readRDS("data/ipca_b2025.rds")
-        } else {
-          ipca_base <<- "2015"
-          readRDS("data/ipca.rds")
-        }
-      }
-    )
+ipca_raw <- tryCatch(download_istat_data("168_761"), error = function(e) NULL)
+if (is.null(ipca_raw) || !is.data.frame(ipca_raw) || nrow(ipca_raw) == 0) {
+  cat("  168_761 non disponibile, provo 168_756 (base 2015)...\n")
+  ipca_base <- "2015"
+  ipca_raw <- tryCatch(download_istat_data("168_756"), error = function(e) NULL)
+}
+# Salva cache solo se download valido (non sovrascrivere con NULL)
+if (!is.null(ipca_raw) && is.data.frame(ipca_raw) && nrow(ipca_raw) > 0) {
+  cache_ipca <- if (ipca_base == "2025") {
+    "data/ipca_b2025.rds"
+  } else {
+    "data/ipca.rds"
   }
-)
+  saveRDS(ipca_raw, cache_ipca)
+  cat("  OK (", nrow(ipca_raw), "righe)\n")
+} else {
+  cat("  Download non riuscito, uso cache locale...\n")
+  if (file.exists("data/ipca_b2025.rds")) {
+    ipca_raw <- readRDS("data/ipca_b2025.rds")
+    if (!is.null(ipca_raw) && is.data.frame(ipca_raw) && nrow(ipca_raw) > 0) {
+      ipca_base <- "2025"
+    } else {
+      ipca_raw <- NULL
+    }
+  }
+  if (is.null(ipca_raw) || nrow(ipca_raw) == 0) {
+    ipca_raw <- readRDS("data/ipca.rds")
+    ipca_base <- "2015"
+  }
+  cat("  Cache caricata (base", ipca_base, ")\n")
+}
 
 pausa <- 15 + runif(1, min = 1, max = 12)
 cat("  Pausa", round(pausa, 1), "s...\n")
@@ -91,41 +92,15 @@ Sys.sleep(pausa)
 
 # Retribuzione contrattuale
 cat("Download retribuzione contrattuale (155_358)...\n")
-retr_raw <- tryCatch(
-  {
-    dt <- download_istat_data("155_358")
-    if (!is.null(dt) && nrow(dt) > 0) {
-      saveRDS(dt, "data/retr_oraria.rds")
-      cat("  OK (", nrow(dt), "righe)\n")
-      dt
-    } else {
-      stop("Download vuoto")
-    }
-  },
-  error = function(e) {
-    cat("  Download fallito:", conditionMessage(e), "\n")
-    # Fallback: prova sub-dataflow più piccolo
-    cat("  Tentativo sub-dataflow 155_358_DF_DCSC_RETRATECO1_1...\n")
-    tryCatch(
-      {
-        dt <- download_istat_data("155_358_DF_DCSC_RETRATECO1_1")
-        if (!is.null(dt) && nrow(dt) > 0) {
-          saveRDS(dt, "data/retr_oraria.rds")
-          cat("  OK via sub-dataflow (", nrow(dt), "righe)\n")
-          dt
-        } else {
-          cat("  Anche sub-dataflow vuoto, uso dati locali...\n")
-          readRDS("data/retr_oraria.rds")
-        }
-      },
-      error = function(e2) {
-        cat("  Anche sub-dataflow fallito:", conditionMessage(e2), "\n")
-        cat("  Uso dati locali...\n")
-        readRDS("data/retr_oraria.rds")
-      }
-    )
-  }
-)
+retr_raw <- tryCatch(download_istat_data("155_358"), error = function(e) NULL)
+if (!is.null(retr_raw) && is.data.frame(retr_raw) && nrow(retr_raw) > 0) {
+  saveRDS(retr_raw, "data/retr_oraria.rds")
+  cat("  OK (", nrow(retr_raw), "righe)\n")
+} else {
+  cat("  Download non riuscito, uso cache locale...\n")
+  retr_raw <- readRDS("data/retr_oraria.rds")
+  cat("  Cache caricata\n")
+}
 
 cat("\n")
 
@@ -233,11 +208,38 @@ cat("==== 4. Calcolo salario reale ====\n\n")
 ipca[, data := as.Date(paste0(periodo, "-01"))]
 retr[, data := as.Date(paste0(periodo, "-01"))]
 
-# Merge
-setkey(ipca, data)
+# Merge: IPCA dal primo mese salari in poi (no backfill pre-salari)
+primo_w <- min(retr$data)
+data_ultimo_w <- max(retr$data)
+ipca_filtered <- ipca[data >= primo_w]
+
+setkey(ipca_filtered, data)
 setkey(retr, data)
-dt <- merge(ipca, retr, by = "data")
+dt <- merge(ipca_filtered, retr, by = "data", all.x = TRUE)
 setorder(dt, data)
+
+# Forward fill: per mesi dopo l'ultimo salario osservato, usa ultimo valore noto
+dt[, w_stimato := data > data_ultimo_w]
+n_stimati <- sum(dt$w_stimato)
+if (n_stimati > 0) {
+  ultimo_w_noto <- retr[data == data_ultimo_w, w_nominale]
+  dt[w_stimato == TRUE, w_nominale := ultimo_w_noto]
+  cat(
+    "  Salario stimato per",
+    n_stimati,
+    "mesi:",
+    format(data_ultimo_w + 32, "%b %Y"),
+    "→",
+    format(max(dt$data), "%b %Y"),
+    "\n"
+  )
+}
+
+# Pulizia colonne periodo dal merge
+if ("periodo.x" %in% names(dt)) {
+  dt[, periodo := fifelse(is.na(periodo.x), format(data, "%Y-%m"), periodo.x)]
+  dt[, c("periodo.x", "periodo.y") := NULL]
+}
 
 cat("Serie combinata:", nrow(dt), "mesi\n")
 cat(
@@ -351,6 +353,8 @@ metadata <- list(
   tasso_mensile_recovery = tasso_mensile_recovery,
   mesi_a_convergenza = mesi_a_convergenza,
   data_convergenza = data_convergenza,
+  data_ultimo_w_osservato = data_ultimo_w,
+  n_mesi_stimati = n_stimati,
   n_mesi = nrow(dt),
   data_primo = min(dt$data),
   generato_il = Sys.time()
