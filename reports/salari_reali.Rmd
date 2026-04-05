@@ -171,12 +171,6 @@ tab_display <- tab[, .(
   `Var. reale` = ifelse(is.na(var_w_reale), "---", sprintf("%+.1f%%", var_w_reale))
 )]
 
-nota_stima <- if (has_stimati) {
-  "\\* Salario nominale stimato (ultimo valore osservato)."
-} else {
-  NULL
-}
-
 kbl(tab_display, booktabs = TRUE, align = "lrrrr",
     caption = paste0("Ultimi ", n_mesi_tab, " mesi: indici e variazioni tendenziali")) %>%
   kable_styling(
@@ -184,7 +178,10 @@ kbl(tab_display, booktabs = TRUE, align = "lrrrr",
     font_size = 7,
     full_width = TRUE
   ) %>%
-  {if (!is.null(nota_stima)) footnote(., general = nota_stima, general_title = "") else .}
+  {if (has_stimati) footnote(.,
+    symbol = "Salario nominale stimato (proiezione lineare ultimi 5 anni).",
+    footnote_as_chunk = TRUE
+  ) else .}
 ```
 
 \normalsize
