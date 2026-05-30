@@ -59,14 +59,14 @@ tab_sintesi <- data.table(
     "Variazione salario reale (t/t-12)",
     "Variazione salario nominale (t/t-12)",
     "Inflazione IPCA (t/t-12)",
-    "Variazione cumulata reale dal 2015",
+    "Variazione cumulata reale dalla media 2020",
     "Tempo stimato al recupero (indice = 100)"
   ),
   Valore = c(
     sprintf("%+.1f%%", meta$var_w_reale_yoy),
     sprintf("%+.1f%%", meta$var_w_nom_yoy),
     sprintf("%+.1f%%", meta$var_ipca_yoy),
-    sprintf("%+.1f%%", meta$cum_reale_2015),
+    sprintf("%+.1f%%", meta$cum_reale_2020),
     conv_label
   )
 )
@@ -82,8 +82,8 @@ kbl(tab_sintesi, booktabs = TRUE, align = "lr",
   column_spec(2, bold = TRUE)
 ```
 
-```{r grafico-indici, fig.cap=paste0("Indici mensili base 2015=100. Ultimo dato: ", meta$periodo_ultimo, "."), fig.height=4, fig.width=8}
-dt_plot <- dt[year(data) >= 2015]
+```{r grafico-indici, fig.cap=paste0("Indici mensili base media 2020 = 100. Ultimo dato: ", meta$periodo_ultimo, "."), fig.height=4, fig.width=8}
+dt_plot <- dt[data >= as.Date("2020-01-01")]
 dt_long <- melt(
   dt_plot,
   id.vars = "data",
@@ -119,8 +119,8 @@ ggplot(dt_long, aes(x = data, y = indice, color = serie)) +
   geom_hline(yintercept = 100, linetype = "dashed", alpha = 0.4) +
   scale_color_manual(values = col_palette) +
   scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
-  scale_y_continuous(breaks = seq(90, 140, 5)) +
-  labs(x = NULL, y = "Indice (2015=100)", color = NULL) +
+  scale_y_continuous(breaks = seq(80, 140, 5)) +
+  labs(x = NULL, y = "Indice (media 2020 = 100)", color = NULL) +
   theme_minimal(base_size = 10) +
   theme(
     legend.position = "bottom",
@@ -161,14 +161,16 @@ ggplot(dt_var_long, aes(x = data, y = variazione, color = serie)) +
 ```{r tabella-25mesi}
 n_mesi_tab <- 25
 tab <- tail(dt[order(data)], n_mesi_tab)
-has_stimati <- "w_stimato" %in% names(tab) && any(tab$w_stimato)
+# Flag di stima: garantisce la colonna anche se assente a monte
+if (!"w_stimato" %in% names(tab)) tab[, w_stimato := FALSE]
+tab[, w_stimato := !is.na(w_stimato) & w_stimato]
+has_stimati <- any(tab$w_stimato)
 tab_display <- tab[, .(
-  Mese = paste0(format(data, "%b %Y"),
-                ifelse("w_stimato" %in% names(.SD) & w_stimato, " *", "")),
+  Mese = paste0(format(data, "%b %Y"), fifelse(w_stimato, " *", "")),
   `W nom.` = sprintf("%.1f", w_nominale),
   IPCA = sprintf("%.1f", ipca),
   `W reale` = sprintf("%.1f", w_reale),
-  `Var. reale` = ifelse(is.na(var_w_reale), "---", sprintf("%+.1f%%", var_w_reale))
+  `Var. reale` = fifelse(is.na(var_w_reale), "---", sprintf("%+.1f%%", var_w_reale))
 )]
 
 kbl(tab_display, booktabs = TRUE, align = "lrrrr",
@@ -189,5 +191,5 @@ kbl(tab_display, booktabs = TRUE, align = "lrrrr",
 ---
 
 \footnotesize
-**Fonti e metodologia.** Indice IPCA (dataflow ISTAT 168\_756, indice generale, base 2015=100). Indice retribuzione contrattuale oraria (dataflow ISTAT 155\_358, economia totale, base dic. 2015=100). Salario reale = (indice retribuzione nominale / IPCA) $\times$ 100. Elaborazione: Giampaolo Montaletti.
+**Fonti e metodologia.** Indice dei prezzi al consumo armonizzato (IPCA, indice generale; dataflow ISTAT 168\_761) e indice della retribuzione contrattuale oraria per l'economia totale (dataflow ISTAT 155\_358). Entrambe le serie sono ribasate alla media 2020 = 100. Il salario reale è ottenuto deflazionando l'indice della retribuzione nominale con l'IPCA: (indice nominale / IPCA) $\times$ 100. I mesi successivi all'ultimo dato di retribuzione osservato sono stimati per proiezione lineare del trend degli ultimi cinque anni e sono contrassegnati con un asterisco (*). Elaborazione: Giampaolo Montaletti.
 \normalsize

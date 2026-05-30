@@ -130,13 +130,14 @@ ipca <- ipca_raw[
 ]
 ipca <- unique(ipca, by = "periodo")
 
-# Ribasamento a 2015=100 (168_761 nasce in base 2025) per continuità con il report.
+# Ribasamento alla media 2020 = 100 (168_761 nasce in base 2025).
+anno_base <- 2020
 ipca[, data_tmp := as.Date(paste0(periodo, "-01"))]
-base_val <- ipca[year(data_tmp) == 2015, mean(ipca, na.rm = TRUE)]
+base_val <- ipca[year(data_tmp) == anno_base, mean(ipca, na.rm = TRUE)]
 if (!is.na(base_val) && base_val > 0) {
   ipca[, ipca := ipca / base_val * 100]
   cat(
-    "  IPCA ribasato a 2015=100 (fattore:",
+    "  IPCA ribasato a media 2020 = 100 (fattore:",
     sprintf("%.4f", 100 / base_val),
     ")\n"
   )
@@ -155,13 +156,13 @@ if (nrow(retr) > 0 && retr[, .N, by = periodo][, any(N > 1)]) {
   retr <- retr[, .(w_nominale = mean(w_nominale, na.rm = TRUE)), by = periodo]
 }
 
-# Ribasamento a 2015=100 per coerenza con IPCA.
+# Ribasamento alla media 2020 = 100 per coerenza con IPCA.
 retr[, data_tmp := as.Date(paste0(periodo, "-01"))]
-base_val <- retr[year(data_tmp) == 2015, mean(w_nominale, na.rm = TRUE)]
+base_val <- retr[year(data_tmp) == anno_base, mean(w_nominale, na.rm = TRUE)]
 if (!is.na(base_val) && base_val > 0) {
   retr[, w_nominale := w_nominale / base_val * 100]
   cat(
-    "  Ribasato a 2015=100 (fattore:",
+    "  Ribasato a media 2020 = 100 (fattore:",
     sprintf("%.4f", 100 / base_val),
     ")\n"
   )
@@ -244,9 +245,9 @@ dt[, var_ipca := (ipca / shift(ipca, 12) - 1) * 100]
 dt[, var_w_nom := (w_nominale / shift(w_nominale, 12) - 1) * 100]
 dt[, var_w_reale := (w_reale / shift(w_reale, 12) - 1) * 100]
 
-# Variazione cumulata dal 2015
-base_2015 <- dt[year(data) == 2015, mean(w_reale, na.rm = TRUE)]
-dt[, w_reale_cum_2015 := (w_reale / base_2015 - 1) * 100]
+# Variazione cumulata dalla media 2020
+base_2020 <- dt[year(data) == anno_base, mean(w_reale, na.rm = TRUE)]
+dt[, w_reale_cum_2020 := (w_reale / base_2020 - 1) * 100]
 
 # Colonne helper
 dt[, `:=`(
@@ -330,7 +331,7 @@ metadata <- list(
   var_w_reale_yoy = ultimo$var_w_reale,
   var_w_nom_yoy = ultimo$var_w_nom,
   var_ipca_yoy = ultimo$var_ipca,
-  cum_reale_2015 = ultimo$w_reale_cum_2015,
+  cum_reale_2020 = ultimo$w_reale_cum_2020,
   w_reale_ultimo = w_reale_ultimo,
   gap_a_100 = gap_a_100,
   w_reale_minimo = w_reale_minimo,
@@ -364,10 +365,10 @@ theme_salari_reali <- function() {
     )
 }
 
-# Grafico 1: Serie indici dal 2015
+# Grafico 1: Serie indici dal 2020
 cat("Grafico 1: Serie indici...\n")
 
-dt_plot <- dt[anno >= 2015]
+dt_plot <- dt[year(data) >= anno_base]
 dt_long <- melt(
   dt_plot,
   id.vars = "data",
@@ -388,15 +389,15 @@ p1 <- ggplot(dt_long, aes(x = data, y = indice, color = serie)) +
   geom_hline(yintercept = 100, linetype = "dashed", alpha = 0.4) +
   scale_color_manual(values = col_palette) +
   scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
-  scale_y_continuous(breaks = seq(90, 140, 5)) +
+  scale_y_continuous(breaks = seq(80, 140, 5)) +
   labs(
     title = "Salari nominali, prezzi e salari reali in Italia",
     subtitle = paste0(
-      "Indici base 2015=100, dati mensili. Ultimo dato: ",
+      "Indici base media 2020 = 100, dati mensili. Ultimo dato: ",
       format(max(dt$data), "%B %Y")
     ),
     x = NULL,
-    y = "Indice (2015=100)",
+    y = "Indice (media 2020 = 100)",
     caption = "Fonte: ISTAT (dataflow 168_761 e 155_358). Elaborazione propria."
   ) +
   theme_salari_reali()
