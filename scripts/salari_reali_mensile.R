@@ -17,7 +17,14 @@ install_if_missing <- function(packages) {
   }
 }
 
-install_if_missing(c("data.table", "ggplot2", "scales", "here", "remotes"))
+install_if_missing(c(
+  "data.table",
+  "ggplot2",
+  "scales",
+  "here",
+  "remotes",
+  "sandwich"
+))
 
 if (!require("istatlab", quietly = TRUE)) {
   remotes::install_github("gmontaletti/istatlab")
@@ -29,6 +36,7 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(scales)
   library(here)
+  library(sandwich)
 })
 
 # Directory output
@@ -260,6 +268,127 @@ cat("  Var. reale YoY:", sprintf("%+.1f%%", dt[.N, var_w_reale]), "\n")
 cat("  Var. nominale YoY:", sprintf("%+.1f%%", dt[.N, var_w_nom]), "\n")
 cat("  Inflazione YoY:", sprintf("%+.1f%%", dt[.N, var_ipca]), "\n\n")
 
+# 4b. Elasticità / pass-through salari→prezzi -----
+
+cat("==== 4b. Pass-through salari verso prezzi (finestra mobile) ====\n\n")
+
+# Elasticità del salario reale ai prezzi: poiché log(w_reale) = log(w_nom) - log(p),
+# ε = dlog(w_reale)/dlog(p) = γ - 1, dove γ = dlog(w_nom)/dlog(p) è il pass-through
+# (grado di indicizzazione: γ=1 piena, γ=0 nulla). Stima OLS su finestra mobile di
+# differenze logaritmiche a 12 mesi, con errori standard HAC (Newey-West, lag 11
+# per le differenze sovrapposte). I mesi con salario stimato sono esclusi dalla
+# regressione per non fabbricare un pass-through spurio dal trend di proiezione.
+
+gamma_window <- 36L
+min_obs_finestra <- 20L
+
+# Differenze logaritmiche a 12 mesi (sovrapposte → autocorrelazione MA(11))
+dt[, dln_w := log(w_nominale) - log(shift(w_nominale, 12L))]
+dt[, dln_p := log(ipca) - log(shift(ipca, 12L))]
+
+# Colonne di output (NA fino alla prima finestra completa)
+dt[, `:=`(gamma_pt = NA_real_, gamma_se = NA_real_)]
+
+n_righe <- nrow(dt)
+for (i in gamma_window:n_righe) {
+  finestra <- dt[(i - gamma_window + 1L):i]
+  usabili <- finestra[
+    !is.na(dln_w) & !is.na(dln_p) & w_stimato == FALSE
+  ]
+  if (nrow(usabili) < min_obs_finestra) {
+    next
+  }
+
+  fit_pt <- tryCatch(
+    lm(dln_w ~ dln_p, data = usabili),
+    error = function(e) NULL
+  )
+  if (is.null(fit_pt)) {
+    next
+  }
+
+  g <- unname(coef(fit_pt)["dln_p"])
+  se <- tryCatch(
+    {
+      v <- sandwich::NeweyWest(
+        fit_pt,
+        lag = 11,
+        prewhite = FALSE,
+        adjust = TRUE
+      )
+      unname(sqrt(diag(v))["dln_p"])
+    },
+    error = function(e) NA_real_
+  )
+  set(dt, i = i, j = "gamma_pt", value = g)
+  set(dt, i = i, j = "gamma_se", value = se)
+}
+
+# Elasticità del salario reale ai prezzi
+dt[, eps_real := gamma_pt - 1]
+
+# Prima stima disponibile e ultima stima "onesta" (su mese a salario osservato)
+data_gamma_primo <- dt[!is.na(gamma_pt), min(data)]
+idx_onesti <- dt[!is.na(gamma_pt) & w_stimato == FALSE, which = TRUE]
+ultima_gamma_idx <- if (length(idx_onesti)) max(idx_onesti) else NA_integer_
+
+if (!is.na(ultima_gamma_idx)) {
+  gamma_ultimo <- dt$gamma_pt[ultima_gamma_idx]
+  gamma_se_ultimo <- dt$gamma_se[ultima_gamma_idx]
+  data_gamma_ultimo <- dt$data[ultima_gamma_idx]
+} else {
+  gamma_ultimo <- NA_real_
+  gamma_se_ultimo <- NA_real_
+  data_gamma_ultimo <- as.Date(NA)
+}
+eps_ultimo <- gamma_ultimo - 1
+
+# Medie di episodio (caratterizzazione del cambiamento nel tempo)
+gamma_pre_surge <- dt[
+  data <= as.Date("2020-12-01") & !is.na(gamma_pt),
+  mean(gamma_pt)
+]
+gamma_surge <- dt[
+  data >= as.Date("2021-01-01") &
+    data <= as.Date("2023-12-01") &
+    !is.na(gamma_pt),
+  mean(gamma_pt)
+]
+gamma_post_surge <- dt[
+  data >= as.Date("2024-01-01") & !is.na(gamma_pt),
+  mean(gamma_pt)
+]
+
+cat("  Finestra mobile:", gamma_window, "mesi\n")
+cat("  Prima stima disponibile:", format(data_gamma_primo, "%B %Y"), "\n")
+cat(
+  "  Pass-through ultimo (mese osservato",
+  format(data_gamma_ultimo, "%b %Y"),
+  "):",
+  sprintf(
+    "gamma %.2f | eps reale %.2f | SE %.3f",
+    gamma_ultimo,
+    eps_ultimo,
+    gamma_se_ultimo
+  ),
+  "\n"
+)
+cat(
+  "  Pass-through medio pre-surge (<=2020):",
+  sprintf("%.2f", gamma_pre_surge),
+  "\n"
+)
+cat(
+  "  Pass-through medio surge (2021-2023):",
+  sprintf("%.2f", gamma_surge),
+  "\n"
+)
+cat(
+  "  Pass-through medio post-surge (>=2024):",
+  sprintf("%.2f", gamma_post_surge),
+  "\n\n"
+)
+
 # 5. Salvataggio output -----
 
 cat("==== 5. Salvataggio output ====\n\n")
@@ -398,6 +527,15 @@ metadata <- list(
   n_mesi_stimati = n_stimati,
   n_mesi = nrow(dt),
   data_primo = min(dt$data),
+  gamma_ultimo = gamma_ultimo,
+  eps_ultimo = eps_ultimo,
+  gamma_se_ultimo = gamma_se_ultimo,
+  data_gamma_ultimo = data_gamma_ultimo,
+  gamma_pre_surge = gamma_pre_surge,
+  gamma_surge = gamma_surge,
+  gamma_post_surge = gamma_post_surge,
+  gamma_window = gamma_window,
+  gamma_data_primo = data_gamma_primo,
   generato_il = Sys.time()
 )
 saveRDS(metadata, file.path(output_dir, "metadata.rds"))
@@ -514,6 +652,52 @@ ggsave(
 )
 cat("  Salvato:", file.path(grafici_dir, "02_variazioni_yoy.png"), "\n\n")
 
+# Grafico 3: Pass-through salari→prezzi (finestra mobile)
+cat("Grafico 3: Pass-through salari verso prezzi...\n")
+
+dt_pt <- dt[!is.na(gamma_pt)]
+
+p3 <- ggplot(dt_pt, aes(x = data, y = gamma_pt)) +
+  annotate(
+    "rect",
+    xmin = as.Date("2021-01-01"),
+    xmax = as.Date("2023-12-01"),
+    ymin = -Inf,
+    ymax = Inf,
+    fill = "grey70",
+    alpha = 0.20
+  ) +
+  geom_hline(yintercept = 1, linetype = "dashed", alpha = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.5) +
+  geom_line(linewidth = 0.8, color = "#CC79A7") +
+  scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+  labs(
+    title = "Pass-through dei salari ai prezzi",
+    subtitle = paste0(
+      "Quota di inflazione trasferita ai salari nominali, finestra mobile ",
+      gamma_window,
+      " mesi. Prima stima: ",
+      format(data_gamma_primo, "%b %Y"),
+      ". Area grigia: ondata inflazionistica 2021-2023."
+    ),
+    x = NULL,
+    y = expression("Pass-through " * gamma),
+    caption = paste0(
+      "1 = piena indicizzazione, 0 = nessuna; elasticita salario reale = pass-through - 1. ",
+      "Fonte: ISTAT. Elaborazione propria."
+    )
+  ) +
+  theme_salari_reali()
+
+ggsave(
+  file.path(grafici_dir, "03_pass_through.png"),
+  p3,
+  width = 10,
+  height = 5,
+  dpi = 300
+)
+cat("  Salvato:", file.path(grafici_dir, "03_pass_through.png"), "\n\n")
+
 # 7. Rendering report -----
 
 cat("==== 7. Rendering report ====\n\n")
@@ -542,4 +726,5 @@ cat("  - Dati:", file.path(output_dir, "serie_mensili.rds"), "\n")
 cat("  - Metadata:", file.path(output_dir, "metadata.rds"), "\n")
 cat("  - Grafico 1:", file.path(grafici_dir, "01_serie_indici.png"), "\n")
 cat("  - Grafico 2:", file.path(grafici_dir, "02_variazioni_yoy.png"), "\n")
+cat("  - Grafico 3:", file.path(grafici_dir, "03_pass_through.png"), "\n")
 cat("  - Report: reports/salari_reali.pdf\n")

@@ -54,11 +54,18 @@ conv_label <- if (!is.na(meta$mesi_a_convergenza)) {
   "non convergente al trend attuale"
 }
 
+gamma_label <- if (!is.null(meta$gamma_ultimo) && !is.na(meta$gamma_ultimo)) {
+  sprintf("%.2f (%s)", meta$gamma_ultimo, format(meta$data_gamma_ultimo, "%b %Y"))
+} else {
+  "n.d."
+}
+
 tab_sintesi <- data.table(
   Indicatore = c(
     "Variazione salario reale (t/t-12)",
     "Variazione salario nominale (t/t-12)",
     "Inflazione IPCA (t/t-12)",
+    paste0("Pass-through salari-prezzi (", meta$gamma_window, " mesi)"),
     "Variazione cumulata reale dalla media 2020",
     "Tempo stimato al recupero (indice = 100)"
   ),
@@ -66,6 +73,7 @@ tab_sintesi <- data.table(
     sprintf("%+.1f%%", meta$var_w_reale_yoy),
     sprintf("%+.1f%%", meta$var_w_nom_yoy),
     sprintf("%+.1f%%", meta$var_ipca_yoy),
+    gamma_label,
     sprintf("%+.1f%%", meta$cum_reale_2020),
     conv_label
   )
@@ -218,10 +226,29 @@ ggplot(dt_var_long, aes(x = data, y = variazione, color = serie)) +
   )
 ```
 
+```{r grafico-elasticita, fig.cap=paste0("Pass-through dei salari ai prezzi (quota dell'inflazione trasferita ai salari nominali), finestra mobile di ", meta$gamma_window, " mesi dal ", format(meta$gamma_data_primo, "%b %Y"), ". 1 = piena indicizzazione, 0 = nessuna; valori sotto zero (2011-13, 2024-26) riflettono il ritardo dei rinnovi rispetto all'inflazione, non un pass-through negativo. Area grigia: ondata inflazionistica 2021-2023. Ultima stima su dato osservato: ", format(meta$data_gamma_ultimo, "%b %Y"), "."), fig.height=2.9, fig.width=8}
+dt_pt <- dt[!is.na(gamma_pt)]
+
+ggplot(dt_pt, aes(x = data, y = gamma_pt)) +
+  annotate(
+    "rect",
+    xmin = as.Date("2021-01-01"), xmax = as.Date("2023-12-01"),
+    ymin = -Inf, ymax = Inf,
+    fill = "grey70", alpha = 0.20
+  ) +
+  geom_hline(yintercept = 1, linetype = "dashed", alpha = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dotted", alpha = 0.5) +
+  geom_line(linewidth = 0.7, color = "#CC79A7") +
+  scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+  labs(x = NULL, y = expression("Pass-through " * gamma)) +
+  theme_minimal(base_size = 10) +
+  theme(panel.grid.minor = element_blank())
+```
+
 \small
 
-```{r tabella-25mesi}
-n_mesi_tab <- 25
+```{r tabella-mesi}
+n_mesi_tab <- 6
 tab <- tail(dt[order(data)], n_mesi_tab)
 # Flag di stima: garantisce la colonna anche se assente a monte
 if (!"w_stimato" %in% names(tab)) tab[, w_stimato := FALSE]
@@ -253,5 +280,5 @@ kbl(tab_display, booktabs = TRUE, align = "lrrrr",
 ---
 
 \footnotesize
-**Fonti e metodologia.** Indice dei prezzi al consumo armonizzato (IPCA, indice generale; dataflow ISTAT 168\_761) e indice della retribuzione contrattuale oraria per l'economia totale (dataflow ISTAT 155\_358). Entrambe le serie sono ribasate alla media 2020 = 100. Il salario reale è ottenuto deflazionando l'indice della retribuzione nominale con l'IPCA: (indice nominale / IPCA) $\times$ 100. I mesi successivi all'ultimo dato di retribuzione osservato sono stimati per proiezione lineare del trend degli ultimi cinque anni e sono contrassegnati con un asterisco (*). **Proiezione verso l'indice 100.** Il recupero del salario reale è proiettato con un modello di trend lineare (OLS) stimato sui dati dal minimo storico (`r format(meta$data_minimo, '%B %Y')`) all'ultimo dato disponibile; la data di convergenza è il primo mese in cui il valore stimato raggiunge 100 (pendenza `r sprintf('%+.3f', meta$slope_recovery)` punti/mese, $R^2$ `r sprintf('%.3f', meta$r2_recovery)`). L'area ombreggiata rappresenta l'intervallo di confidenza al 95% della previsione`r if (!is.na(meta$data_convergenza_min) && !is.na(meta$data_convergenza_max)) paste0(", corrispondente a una convergenza compresa fra ", format(meta$data_convergenza_min, '%B %Y'), " e ", format(meta$data_convergenza_max, '%B %Y')) else ""`. La proiezione assume la persistenza del trend di recupero e non incorpora shock futuri su prezzi o retribuzioni. Elaborazione: Giampaolo Montaletti.
+**Fonti e metodologia.** IPCA generale (ISTAT 168\_761) e retribuzione contrattuale oraria, economia totale (ISTAT 155\_358), ribasati alla media 2020 = 100. Salario reale = (indice nominale / IPCA) $\times$ 100. I mesi oltre l'ultimo dato di retribuzione sono stimati per proiezione lineare (trend a 5 anni, contrassegnati con *). **Pass-through.** Il pass-through $\gamma$ è la pendenza della regressione OLS della differenza logaritmica a 12 mesi del salario nominale su quella dei prezzi, su finestra mobile di `r meta$gamma_window` mesi (errori standard HAC Newey-West; mesi stimati esclusi); l'elasticità del salario reale ai prezzi è $\varepsilon = \gamma - 1$. **Proiezione verso l'indice 100.** Trend lineare (OLS) dal minimo storico (`r format(meta$data_minimo, '%B %Y')`) all'ultimo dato (pendenza `r sprintf('%+.3f', meta$slope_recovery)` punti/mese, $R^2$ `r sprintf('%.3f', meta$r2_recovery)`); convergenza al primo mese con stima $\geq$ 100`r if (!is.na(meta$data_convergenza_min) && !is.na(meta$data_convergenza_max)) paste0(" (IC 95%: ", format(meta$data_convergenza_min, '%b %Y'), "--", format(meta$data_convergenza_max, '%b %Y'), ")") else ""`, ipotizzando la persistenza del trend. Elaborazione: Giampaolo Montaletti.
 \normalsize
