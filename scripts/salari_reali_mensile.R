@@ -268,41 +268,82 @@ cat("==== 5. Salvataggio output ====\n\n")
 saveRDS(dt, file.path(output_dir, "serie_mensili.rds"))
 cat("  Salvato:", file.path(output_dir, "serie_mensili.rds"), "\n")
 
-# Stima convergenza a 100
+# Stima convergenza a 100: trend lineare (OLS) sulla fase di recupero
 ultimo <- dt[.N]
 w_reale_ultimo <- ultimo$w_reale
 gap_a_100 <- 100 - w_reale_ultimo
 
-# Tasso di crescita dalla fase di recupero (dal minimo storico in poi)
+# Fase di recupero: dal minimo storico del salario reale all'ultimo dato
 min_idx <- which.min(dt$w_reale)
 data_minimo <- dt$data[min_idx]
 w_reale_minimo <- dt$w_reale[min_idx]
 n_mesi_recovery <- nrow(dt) - min_idx
 
-if (n_mesi_recovery >= 3) {
-  tasso_mensile_recovery <- (w_reale_ultimo / w_reale_minimo)^(1 /
-    n_mesi_recovery) -
-    1
-} else {
-  tasso_mensile_recovery <- NA
+# Valori di default (nessuna convergenza stimabile)
+slope_recovery <- NA
+r2_recovery <- NA
+mesi_a_convergenza <- NA
+data_convergenza <- NA
+data_convergenza_min <- NA
+data_convergenza_max <- NA
+proj_band <- NULL
+
+if (n_mesi_recovery >= 6) {
+  # t = mesi dal minimo storico; modello lineare w_reale ~ t
+  recovery <- dt[min_idx:nrow(dt), .(data, w_reale)]
+  recovery[, t := as.numeric(data - data_minimo) / 30.44]
+  fit_rec <- lm(w_reale ~ t, data = recovery)
+  slope_recovery <- unname(coef(fit_rec)["t"])
+  r2_recovery <- summary(fit_rec)$r.squared
+  t_ultimo <- as.numeric(ultimo$data - data_minimo) / 30.44
+
+  if (!is.na(slope_recovery) && slope_recovery > 0) {
+    # Proiezione mensile dall'ultimo dato, orizzonte massimo 30 anni
+    n_horizon <- 360
+    proj_dates <- seq.Date(
+      ultimo$data,
+      by = "month",
+      length.out = n_horizon + 1
+    )
+    proj_t <- t_ultimo + as.numeric(proj_dates - ultimo$data) / 30.44
+    pred <- predict(
+      fit_rec,
+      newdata = data.frame(t = proj_t),
+      interval = "confidence",
+      level = 0.95
+    )
+    proj_band <- data.table(
+      data = proj_dates,
+      fit = pred[, "fit"],
+      lwr = pred[, "lwr"],
+      upr = pred[, "upr"]
+    )
+
+    # Primo mese in cui ciascuna curva raggiunge l'indice 100
+    primo_100 <- function(v) {
+      idx <- which(v >= 100)[1]
+      if (is.na(idx)) as.Date(NA) else proj_dates[idx]
+    }
+    data_convergenza <- primo_100(proj_band$fit)
+    data_convergenza_min <- primo_100(proj_band$upr) # banda alta: convergenza più precoce
+    data_convergenza_max <- primo_100(proj_band$lwr) # banda bassa: convergenza più tardiva
+
+    if (!is.na(data_convergenza)) {
+      mesi_a_convergenza <- round(
+        as.numeric(data_convergenza - ultimo$data) / 30.44
+      )
+      # Tronca la banda al raggiungimento di 100 (limite inferiore, o stima centrale)
+      end_date <- if (!is.na(data_convergenza_max)) {
+        data_convergenza_max
+      } else {
+        data_convergenza
+      }
+      proj_band <- proj_band[data <= end_date]
+    }
+  }
 }
 
-# Mesi stimati per raggiungere indice 100 al tasso della fase di recupero
-if (!is.na(tasso_mensile_recovery) && tasso_mensile_recovery > 0) {
-  mesi_a_convergenza <- ceiling(
-    log(100 / w_reale_ultimo) / log(1 + tasso_mensile_recovery)
-  )
-  data_convergenza <- seq.Date(
-    ultimo$data,
-    by = "month",
-    length.out = mesi_a_convergenza + 1
-  )[mesi_a_convergenza + 1]
-} else {
-  mesi_a_convergenza <- NA
-  data_convergenza <- NA
-}
-
-cat("  Stima convergenza (fase di recupero):\n")
+cat("  Stima convergenza (trend lineare sulla fase di recupero):\n")
 cat("    Indice attuale:", sprintf("%.1f", w_reale_ultimo), "\n")
 cat(
   "    Minimo storico:",
@@ -311,16 +352,25 @@ cat(
 )
 cat("    Mesi di recupero:", n_mesi_recovery, "\n")
 cat("    Gap a 100:", sprintf("%.1f", gap_a_100), "punti\n")
-if (!is.na(tasso_mensile_recovery)) {
+if (!is.na(slope_recovery)) {
   cat(
-    "    Tasso mensile (recovery):",
-    sprintf("%.3f%%", tasso_mensile_recovery * 100),
+    "    Pendenza trend:",
+    sprintf("%+.3f punti/mese (R2 %.3f)", slope_recovery, r2_recovery),
     "\n"
   )
 }
 if (!is.na(mesi_a_convergenza)) {
   cat("    Mesi stimati:", mesi_a_convergenza, "\n")
   cat("    Data stimata:", format(data_convergenza, "%B %Y"), "\n")
+  if (!is.na(data_convergenza_min) && !is.na(data_convergenza_max)) {
+    cat(
+      "    IC 95%:",
+      format(data_convergenza_min, "%b %Y"),
+      "-",
+      format(data_convergenza_max, "%b %Y"),
+      "\n"
+    )
+  }
 }
 cat("\n")
 
@@ -337,9 +387,13 @@ metadata <- list(
   w_reale_minimo = w_reale_minimo,
   data_minimo = data_minimo,
   n_mesi_recovery = n_mesi_recovery,
-  tasso_mensile_recovery = tasso_mensile_recovery,
+  slope_recovery = slope_recovery,
+  r2_recovery = r2_recovery,
   mesi_a_convergenza = mesi_a_convergenza,
   data_convergenza = data_convergenza,
+  data_convergenza_min = data_convergenza_min,
+  data_convergenza_max = data_convergenza_max,
+  proj_band = proj_band,
   data_ultimo_w_osservato = data_ultimo_w,
   n_mesi_stimati = n_stimati,
   n_mesi = nrow(dt),

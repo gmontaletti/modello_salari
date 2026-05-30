@@ -51,7 +51,7 @@ Ultimo dato disponibile: **`r meta$periodo_ultimo`**. Serie dal `r format(meta$d
 conv_label <- if (!is.na(meta$mesi_a_convergenza)) {
   paste0(meta$mesi_a_convergenza, " mesi (", format(meta$data_convergenza, "%B %Y"), ")")
 } else {
-  "non convergente al tasso attuale"
+  "non convergente al trend attuale"
 }
 
 tab_sintesi <- data.table(
@@ -82,7 +82,7 @@ kbl(tab_sintesi, booktabs = TRUE, align = "lr",
   column_spec(2, bold = TRUE)
 ```
 
-```{r grafico-indici, fig.cap=paste0("Indici mensili base media 2020 = 100. Ultimo dato: ", meta$periodo_ultimo, "."), fig.height=4, fig.width=8}
+```{r grafico-indici, fig.cap=paste0("Indici mensili base media 2020 = 100. La linea tratteggiata verde e l'area ombreggiata indicano la proiezione del salario reale verso l'indice 100 (trend lineare con IC 95%). ", if (!is.na(meta$mesi_a_convergenza) && meta$mesi_a_convergenza > 24) "Oltre i 24 mesi l'asse temporale della proiezione è compresso, con interruzione (//) fra dato storico e previsione. " else "", "Ultimo dato: ", meta$periodo_ultimo, "."), fig.height=4, fig.width=8}
 dt_plot <- dt[data >= as.Date("2020-01-01")]
 dt_long <- melt(
   dt_plot,
@@ -96,36 +96,98 @@ dt_long[, serie := factor(serie,
   labels = c("Salario nominale", "IPCA", "Salario reale")
 )]
 
-# Proiezione convergenza salario reale
-proj_data <- NULL
-if (!is.na(meta$mesi_a_convergenza) && meta$tasso_mensile_recovery > 0) {
-  proj_dates <- seq.Date(meta$data_ultimo, by = "month",
-                         length.out = meta$mesi_a_convergenza + 1)
-  proj_values <- meta$w_reale_ultimo * (1 + meta$tasso_mensile_recovery)^(0:meta$mesi_a_convergenza)
-  proj_data <- data.table(data = proj_dates, indice = proj_values)
+# Proiezione convergenza salario reale: trend lineare con IC 95%
+proj_band <- meta$proj_band
+if (!is.null(proj_band)) proj_band <- as.data.table(copy(proj_band))
+
+# Quando la convergenza supera i 24 mesi, comprimi la coda di proiezione a
+# destra (per non schiacciare la parte storica) e inserisci un'interruzione
+# d'asse fra ultimo dato osservato e previsione.
+break_forecast <- !is.null(proj_band) &&
+  !is.na(meta$mesi_a_convergenza) && meta$mesi_a_convergenza > 24
+
+x_min <- as.numeric(min(dt_long$data))
+t_break <- as.numeric(meta$data_ultimo)
+if (break_forecast) {
+  gap_days <- (t_break - x_min) * 0.03
+  compress <- 0.35
+} else {
+  gap_days <- 0
+  compress <- 1
 }
 
-ggplot(dt_long, aes(x = data, y = indice, color = serie)) +
+# Mappa Date -> posizione sull'asse: identità per lo storico, gap + compressione
+# per la proiezione
+to_x <- function(d) {
+  dd <- as.numeric(d)
+  ifelse(dd <= t_break, dd, t_break + gap_days + (dd - t_break) * compress)
+}
+
+dt_long[, x := to_x(data)]
+if (!is.null(proj_band)) proj_band[, x := to_x(data)]
+
+# Limiti verticali e tacche annuali (assottigliate sul lato proiezione)
+all_y <- c(dt_long$indice, if (!is.null(proj_band)) c(proj_band$lwr, proj_band$upr))
+ymin <- floor(min(all_y, na.rm = TRUE) / 5) * 5
+ymax <- ceiling(max(all_y, na.rm = TRUE) / 5) * 5
+
+max_date <- if (!is.null(proj_band)) max(proj_band$data) else max(dt_long$data)
+year_seq <- seq(
+  as.Date(paste0(year(min(dt_long$data)), "-01-01")),
+  as.Date(paste0(year(max_date), "-01-01")),
+  by = "year"
+)
+if (break_forecast) {
+  last_hist_year <- year(meta$data_ultimo)
+  keep <- year(year_seq) <= last_hist_year | (year(year_seq) %% 2 == 0)
+  year_seq <- year_seq[keep]
+}
+tick_x <- to_x(year_seq)
+tick_lab <- format(year_seq, "%Y")
+
+p <- ggplot(dt_long, aes(x = x, y = indice, color = serie)) +
+  {if (!is.null(proj_band)) geom_ribbon(
+    data = proj_band, aes(x = x, ymin = lwr, ymax = upr),
+    fill = "#009E73", alpha = 0.15, inherit.aes = FALSE
+  )} +
   geom_line(linewidth = 0.7) +
-  {if (!is.null(proj_data)) geom_line(
-    data = proj_data, aes(x = data, y = indice),
+  {if (!is.null(proj_band)) geom_line(
+    data = proj_band, aes(x = x, y = fit),
     color = "#009E73", linetype = "dotted", linewidth = 0.6,
     inherit.aes = FALSE
   )} +
-  {if (!is.null(proj_data)) annotate(
-    "point", x = meta$data_convergenza, y = 100,
+  {if (!is.na(meta$data_convergenza)) annotate(
+    "point", x = to_x(meta$data_convergenza), y = 100,
     shape = 21, size = 2.5, fill = "#009E73", color = "white"
   )} +
   geom_hline(yintercept = 100, linetype = "dashed", alpha = 0.4) +
   scale_color_manual(values = col_palette) +
-  scale_x_date(date_breaks = "1 year", date_labels = "%Y") +
-  scale_y_continuous(breaks = seq(80, 140, 5)) +
+  scale_x_continuous(breaks = tick_x, labels = tick_lab) +
+  scale_y_continuous(breaks = seq(ymin, ymax, 5)) +
+  coord_cartesian(ylim = c(ymin, ymax), clip = "off") +
   labs(x = NULL, y = "Indice (media 2020 = 100)", color = NULL) +
   theme_minimal(base_size = 10) +
   theme(
     legend.position = "bottom",
     panel.grid.minor = element_blank()
   )
+
+# Artefatto di interruzione (//) sull'asse x, nel gap fra storico e proiezione
+if (break_forecast) {
+  xb <- t_break + gap_days / 2
+  dw <- gap_days * 0.28
+  dh <- (ymax - ymin) * 0.03
+  p <- p +
+    annotate("segment",
+      x = xb - gap_days * 0.18 - dw, xend = xb - gap_days * 0.18 + dw,
+      y = ymin - dh, yend = ymin + dh, color = "grey40", linewidth = 0.5
+    ) +
+    annotate("segment",
+      x = xb + gap_days * 0.18 - dw, xend = xb + gap_days * 0.18 + dw,
+      y = ymin - dh, yend = ymin + dh, color = "grey40", linewidth = 0.5
+    )
+}
+p
 ```
 
 ```{r grafico-variazioni, fig.cap=paste0("Variazioni tendenziali anno su anno (ultimi 24 mesi)."), fig.height=3.5, fig.width=8}
@@ -191,5 +253,5 @@ kbl(tab_display, booktabs = TRUE, align = "lrrrr",
 ---
 
 \footnotesize
-**Fonti e metodologia.** Indice dei prezzi al consumo armonizzato (IPCA, indice generale; dataflow ISTAT 168\_761) e indice della retribuzione contrattuale oraria per l'economia totale (dataflow ISTAT 155\_358). Entrambe le serie sono ribasate alla media 2020 = 100. Il salario reale è ottenuto deflazionando l'indice della retribuzione nominale con l'IPCA: (indice nominale / IPCA) $\times$ 100. I mesi successivi all'ultimo dato di retribuzione osservato sono stimati per proiezione lineare del trend degli ultimi cinque anni e sono contrassegnati con un asterisco (*). Elaborazione: Giampaolo Montaletti.
+**Fonti e metodologia.** Indice dei prezzi al consumo armonizzato (IPCA, indice generale; dataflow ISTAT 168\_761) e indice della retribuzione contrattuale oraria per l'economia totale (dataflow ISTAT 155\_358). Entrambe le serie sono ribasate alla media 2020 = 100. Il salario reale è ottenuto deflazionando l'indice della retribuzione nominale con l'IPCA: (indice nominale / IPCA) $\times$ 100. I mesi successivi all'ultimo dato di retribuzione osservato sono stimati per proiezione lineare del trend degli ultimi cinque anni e sono contrassegnati con un asterisco (*). **Proiezione verso l'indice 100.** Il recupero del salario reale è proiettato con un modello di trend lineare (OLS) stimato sui dati dal minimo storico (`r format(meta$data_minimo, '%B %Y')`) all'ultimo dato disponibile; la data di convergenza è il primo mese in cui il valore stimato raggiunge 100 (pendenza `r sprintf('%+.3f', meta$slope_recovery)` punti/mese, $R^2$ `r sprintf('%.3f', meta$r2_recovery)`). L'area ombreggiata rappresenta l'intervallo di confidenza al 95% della previsione`r if (!is.na(meta$data_convergenza_min) && !is.na(meta$data_convergenza_max)) paste0(", corrispondente a una convergenza compresa fra ", format(meta$data_convergenza_min, '%B %Y'), " e ", format(meta$data_convergenza_max, '%B %Y')) else ""`. La proiezione assume la persistenza del trend di recupero e non incorpora shock futuri su prezzi o retribuzioni. Elaborazione: Giampaolo Montaletti.
 \normalsize
